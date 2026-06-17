@@ -1,0 +1,38 @@
+# Конфигурация бота OBED.
+# Никаких приватных ключей здесь — только в GitHub Actions secret BOT_PRIVATE_KEY.
+
+network:
+  chain_id: 56
+  rpc_url: "https://bsc-dataseed.binance.org/"
+  # запасные публичные RPC, если основной не отвечает (бот пробует по очереди)
+  rpc_fallback_urls:
+    - "https://bsc-dataseed1.defibit.io/"
+    - "https://bsc-dataseed1.ninicoin.io/"
+    - "https://bsc.publicnode.com"
+
+contracts:
+  factory: "0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7"
+  position_manager: "0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613"
+  swap_router02: "0xB971eF87ede563556b2ED4b1C0b0019111Dd85d2"
+  wbnb: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+
+pool:
+  # Заполни после того, как создашь пул сам.
+  address: ""
+  token0: ""
+  token1: ""
+  fee_tier: 2500          # в единицах Uniswap V3 (500 = 0.05%, 2500 = 0.25%, 10000 = 1%)
+
+position:
+  range_width_pct: 10      # ширина нового диапазона: ±10% от текущей цены
+  check_interval_hours: 1   # бот не проверяет чаще этого интервала
+  slippage_bps: 100         # допустимый slippage при свопах/минте, в б.п. (100 = 1%)
+
+fees:
+  threshold_usd: 10
+  stablecoin_address: "0x55d398326f99059fF775485246999027B3197955"  # USDT (BEP-20)
+  withdrawal_address: ""    # адрес "на обед" — впиши свой
+
+paths:
+  state_file: "state/state.json"
+  log_file: "state/actions.jsonl"

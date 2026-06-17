@@ -1,0 +1,39 @@
+name: OBED bot tick
+
+on:
+  schedule:
+    - cron: "5 * * * *"   # каждый час в :05
+  workflow_dispatch: {}    # ручной запуск для первого открытия позиции
+
+permissions:
+  contents: write
+
+concurrency:
+  group: obed-bot-tick
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run bot tick
+        env:
+          BOT_PRIVATE_KEY: ${{ secrets.BOT_PRIVATE_KEY }}
+        run: python -m src.main
+
+      - name: Commit state and logs
+        run: |
+          git config user.name "obed-bot"
+          git config user.email "obed-bot@users.noreply.github.com"
+          git add state/state.json state/actions.jsonl
+          git diff --quiet --cached || git commit -m "obed: state update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push

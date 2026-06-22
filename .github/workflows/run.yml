@@ -2,7 +2,7 @@ name: OBED bot tick
 
 on:
   schedule:
-    - cron: "5 * * * *"   # каждый час в :05
+    - cron: "5 */4 * * *"   # каждые 4 часа в :05
   workflow_dispatch: {}    # ручной запуск для первого открытия позиции
 
 permissions:

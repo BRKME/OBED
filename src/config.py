@@ -68,12 +68,12 @@ class Config:
         return self.raw["position"]["slippage_bps"]
 
     @property
-    def fee_threshold_usd(self) -> float:
-        return self.raw["fees"]["threshold_usd"]
+    def fee_threshold_payout(self) -> float:
+        return self.raw["fees"]["threshold_payout_token"]
 
     @property
-    def stablecoin_address(self) -> str:
-        return self.raw["fees"]["stablecoin_address"]
+    def payout_token_address(self) -> str:
+        return self.raw["fees"]["payout_token_address"]
 
     @property
     def withdrawal_address(self) -> str:

@@ -58,11 +58,11 @@ def symmetric_range_ticks(current_tick: int, sqrt_price_x96: int, range_width_pc
     return tick_lower, tick_upper
 
 
-def fees_value_in_usd(tokens_owed0: int, tokens_owed1: int, decimals0: int, decimals1: int,
-                       price_human_t1_per_t0: float, stable_is_token0: bool) -> float:
-    """Оценка стоимости накопленных комиссий в стейблкоине по текущей цене пула."""
+def fees_value_in_payout(tokens_owed0: int, tokens_owed1: int, decimals0: int, decimals1: int,
+                          price_human_t1_per_t0: float, payout_is_token0: bool) -> float:
+    """Оценка стоимости накопленных комиссий в payout-токене по текущей цене пула."""
     amt0 = tokens_owed0 / (10 ** decimals0)
     amt1 = tokens_owed1 / (10 ** decimals1)
-    if stable_is_token0:
+    if payout_is_token0:
         return amt0 + (amt1 / price_human_t1_per_t0 if price_human_t1_per_t0 else 0)
     return amt1 + (amt0 * price_human_t1_per_t0)

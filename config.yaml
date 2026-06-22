@@ -17,11 +17,10 @@ contracts:
   wbnb: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
 
 pool:
-  # Заполни после того, как создашь пул сам.
-  address: ""
-  token0: ""
-  token1: ""
-  fee_tier: 2500          # в единицах Uniswap V3 (500 = 0.05%, 2500 = 0.25%, 10000 = 1%)
+  address: "0x64b0B57840A3a2Bde9a05b69d726239194dc49e1"
+  token0: "0x1Ba42e5193dfA8B03D15dd1B86a3113bbBEF8Eeb"   # ZEC
+  token1: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"   # WBNB
+  fee_tier: 10000          # 1% (Uniswap V3)
 
 position:
   range_width_pct: 10      # ширина нового диапазона: ±10% от текущей цены
@@ -29,9 +28,11 @@ position:
   slippage_bps: 100         # допустимый slippage при свопах/минте, в б.п. (100 = 1%)
 
 fees:
-  threshold_usd: 10
-  stablecoin_address: "0x55d398326f99059fF775485246999027B3197955"  # USDT (BEP-20)
-  withdrawal_address: ""    # адрес "на обед" — впиши свой
+  # Валюта вывода — WBNB (token1 в пуле ZEC/WBNB). Бот собирает комиссии,
+  # свапает ZEC->WBNB через этот же пул и шлёт WBNB на адрес "на обед".
+  payout_token_address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"  # WBNB
+  threshold_payout_token: 0.02   # порог вывода в единицах WBNB
+  withdrawal_address: "0x107DF98E0eC52B8BEee9F7673ebca3751CC00E40"
 
 paths:
   state_file: "state/state.json"

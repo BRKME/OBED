@@ -39,8 +39,8 @@ def is_in_range(pool_state: dict, tick_lower: int, tick_upper: int) -> bool:
     return tick_lower <= pool_state["tick"] < tick_upper
 
 
-def stable_is_token0(cfg, pool_state: dict) -> bool:
-    return Web3.to_checksum_address(pool_state["token0"]) == Web3.to_checksum_address(cfg.stablecoin_address)
+def payout_is_token0(cfg, pool_state: dict) -> bool:
+    return Web3.to_checksum_address(pool_state["token0"]) == Web3.to_checksum_address(cfg.payout_token_address)
 
 
 def _wallet_balances(client, pool_state: dict) -> tuple:
@@ -164,9 +164,9 @@ def close_position(client, cfg, token_id: int, pool_state: dict) -> None:
 def check_and_collect_fees(client, cfg, token_id: int, pool_state: dict) -> None:
     """
     "Тычет" позицию decreaseLiquidity(0), чтобы обновить tokensOwed, затем проверяет
-    стоимость накопленных комиссий. Если порог достигнут — забирает только комиссии
-    (ликвидность не трогая), конвертирует нестейбл-часть в стейблкоин и шлёт на
-    withdrawal_address.
+    стоимость накопленных комиссий в пересчёте на payout-токен. Если порог достигнут —
+    забирает только комиссии (ликвидность не трогая), конвертирует второй токен в
+    payout-токен через тот же пул и шлёт всё на withdrawal_address.
     """
     poke_params = (token_id, 0, 0, 0, int(time.time()) + DEADLINE_SECONDS)
     client.send_tx(client.position_manager.functions.decreaseLiquidity(poke_params))
@@ -174,36 +174,37 @@ def check_and_collect_fees(client, cfg, token_id: int, pool_state: dict) -> None
     pos = client.position_manager.functions.positions(token_id).call()
     tokens_owed0, tokens_owed1 = pos[10], pos[11]
 
-    is_stable0 = stable_is_token0(cfg, pool_state)
-    fees_usd = math_utils.fees_value_in_usd(
+    is_payout0 = payout_is_token0(cfg, pool_state)
+    fees_value = math_utils.fees_value_in_payout(
         tokens_owed0, tokens_owed1, pool_state["decimals0"], pool_state["decimals1"],
-        pool_state["price_t1_per_t0"], is_stable0)
+        pool_state["price_t1_per_t0"], is_payout0)
 
-    logger.info("Накопленные комиссии: ~$%.4f (порог $%.2f)", fees_usd, cfg.fee_threshold_usd)
+    logger.info("Накопленные комиссии: ~%.6f payout-токена (порог %.6f)",
+                fees_value, cfg.fee_threshold_payout)
 
-    if fees_usd < cfg.fee_threshold_usd:
+    if fees_value < cfg.fee_threshold_payout:
         return
 
     collect_params = (token_id, client.account.address, MAX_UINT128, MAX_UINT128)
     receipt = client.send_tx(client.position_manager.functions.collect(collect_params))
     logger.info("Комиссии собраны: tokenId=%s tx=%s", token_id, receipt.transactionHash.hex())
 
-    # конвертируем нестейбл-часть в стейблкоин
-    stable_token = pool_state["token0"] if is_stable0 else pool_state["token1"]
-    other_token = pool_state["token1"] if is_stable0 else pool_state["token0"]
+    # конвертируем второй токен в payout-токен через тот же пул
+    payout_token = pool_state["token0"] if is_payout0 else pool_state["token1"]
+    other_token = pool_state["token1"] if is_payout0 else pool_state["token0"]
     other_balance = client.erc20(other_token).functions.balanceOf(client.account.address).call()
 
     if other_balance > 0:
-        swap_exact_in(client, other_token, stable_token, pool_state["fee"], other_balance,
+        swap_exact_in(client, other_token, payout_token, pool_state["fee"], other_balance,
                       cfg.slippage_bps)
 
-    stable_balance = client.erc20(stable_token).functions.balanceOf(client.account.address).call()
-    if stable_balance > 0:
+    payout_balance = client.erc20(payout_token).functions.balanceOf(client.account.address).call()
+    if payout_balance > 0:
         transfer_receipt = client.send_tx(
-            client.erc20(stable_token).functions.transfer(
-                Web3.to_checksum_address(cfg.withdrawal_address), stable_balance))
+            client.erc20(payout_token).functions.transfer(
+                Web3.to_checksum_address(cfg.withdrawal_address), payout_balance))
         logger.info("Комиссии отправлены на %s: %s (tx=%s)", cfg.withdrawal_address,
-                    stable_balance, transfer_receipt.transactionHash.hex())
+                    payout_balance, transfer_receipt.transactionHash.hex())
         log_action(cfg.log_file, "withdraw_fees", price=pool_state["price_t1_per_t0"],
-                   tx_hash=transfer_receipt.transactionHash.hex(), fees_usd=fees_usd,
-                   token_id=token_id, amount_stable=stable_balance)
+                   tx_hash=transfer_receipt.transactionHash.hex(), fees_usd=fees_value,
+                   token_id=token_id, amount_payout=payout_balance)

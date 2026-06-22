@@ -192,20 +192,21 @@ def close_position(client, cfg, token_id: int, pool_state: dict) -> None:
 
 def check_and_collect_fees(client, cfg, token_id: int, pool_state: dict) -> None:
     """
-    "Тычет" позицию decreaseLiquidity(0), чтобы обновить tokensOwed, затем проверяет
-    стоимость накопленных комиссий в пересчёте на payout-токен. Если порог достигнут —
-    забирает только комиссии (ликвидность не трогая), конвертирует второй токен в
-    payout-токен через тот же пул и шлёт всё на withdrawal_address.
+    Оценивает накопленные комиссии статическим вызовом collect.call() (без транзакции
+    и газа) — это самый надёжный способ узнать сумму, не трогая ликвидность и не
+    завися от того, как форк реализует decreaseLiquidity(0). Если стоимость комиссий
+    в пересчёте на payout-токен достигла порога — собирает их реальной транзакцией,
+    конвертирует второй токен в payout-токен через тот же пул и шлёт на withdrawal_address.
     """
-    poke_params = (token_id, 0, 0, 0, int(time.time()) + DEADLINE_SECONDS)
-    client.send_tx(client.position_manager.functions.decreaseLiquidity(poke_params))
+    collect_params = (token_id, client.account.address, MAX_UINT128, MAX_UINT128)
 
-    pos = client.position_manager.functions.positions(token_id).call()
-    tokens_owed0, tokens_owed1 = pos[10], pos[11]
+    # статическая симуляция: сколько токенов вернёт collect прямо сейчас
+    owed0, owed1 = client.position_manager.functions.collect(collect_params).call(
+        {"from": client.account.address})
 
     is_payout0 = payout_is_token0(cfg, pool_state)
     fees_value = math_utils.fees_value_in_payout(
-        tokens_owed0, tokens_owed1, pool_state["decimals0"], pool_state["decimals1"],
+        owed0, owed1, pool_state["decimals0"], pool_state["decimals1"],
         pool_state["price_t1_per_t0"], is_payout0)
 
     logger.info("Накопленные комиссии: ~%.6f payout-токена (порог %.6f)",
@@ -214,7 +215,6 @@ def check_and_collect_fees(client, cfg, token_id: int, pool_state: dict) -> None
     if fees_value < cfg.fee_threshold_payout:
         return
 
-    collect_params = (token_id, client.account.address, MAX_UINT128, MAX_UINT128)
     receipt = client.send_tx(client.position_manager.functions.collect(collect_params))
     logger.info("Комиссии собраны: tokenId=%s tx=%s", token_id, receipt.transactionHash.hex())
 

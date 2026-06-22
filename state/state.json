@@ -1,5 +1,9 @@
 {
-  "position": null,
+  "position": {
+    "token_id": 2359282,
+    "tick_lower": null,
+    "tick_upper": null
+  },
   "last_check_ts": null,
   "schema_version": 1
 }

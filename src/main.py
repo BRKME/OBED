@@ -34,6 +34,13 @@ def run() -> int:
 
         else:
             token_id = position["token_id"]
+
+            # Подхват позиции, открытой вручную: если тиков нет в state — дочитываем из контракта
+            if position.get("tick_lower") is None or position.get("tick_upper") is None:
+                position = pm.hydrate_position(client, token_id)
+                state["position"] = position
+                save_state(cfg.state_file, state)
+
             in_range = pm.is_in_range(pool_state, position["tick_lower"], position["tick_upper"])
 
             if not in_range:

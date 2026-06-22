@@ -86,6 +86,35 @@ def rebalance_to_50_50(client, pool_state: dict, slippage_bps: int) -> None:
                       amount_in, slippage_bps)
 
 
+def hydrate_position(client, token_id: int) -> dict:
+    """
+    Читает существующую позицию из контракта positions(token_id) и возвращает
+    её границы. Используется для подхвата позиции, открытой вручную, когда в
+    state.json указан только token_id без тиков.
+    Проверяет, что позиция жива (liquidity > 0) и принадлежит токенам нашего пула.
+    """
+    pos = client.position_manager.functions.positions(token_id).call()
+    token0, token1 = pos[2], pos[3]
+    fee = pos[4]
+    tick_lower, tick_upper = pos[5], pos[6]
+    liquidity = pos[7]
+
+    expected0 = Web3.to_checksum_address(client.cfg.pool_token0)
+    expected1 = Web3.to_checksum_address(client.cfg.pool_token1)
+    if (Web3.to_checksum_address(token0) != expected0 or
+            Web3.to_checksum_address(token1) != expected1):
+        raise ValueError(
+            f"Позиция {token_id} относится к другой паре токенов "
+            f"({token0}/{token1}), а не к пулу из конфига")
+
+    if liquidity == 0:
+        raise ValueError(f"Позиция {token_id} имеет нулевую ликвидность (закрыта?)")
+
+    logger.info("Подхвачена существующая позиция %s: tickLower=%s tickUpper=%s liquidity=%s",
+                token_id, tick_lower, tick_upper, liquidity)
+    return {"token_id": token_id, "tick_lower": tick_lower, "tick_upper": tick_upper}
+
+
 def open_position(client, cfg, pool_state: dict) -> dict:
     rebalance_to_50_50(client, pool_state, cfg.slippage_bps)
 

@@ -118,7 +118,11 @@ def hydrate_position(client, token_id: int) -> dict:
 def open_position(client, cfg, pool_state: dict) -> dict:
     rebalance_to_50_50(client, pool_state, cfg.slippage_bps)
 
-    # баланс мог измениться после свопа — перечитываем
+    # Ребаланс-своп мог сдвинуть цену (особенно в маленьком пуле) — перечитываем
+    # состояние пула заново, чтобы новый диапазон был центрирован на актуальной цене,
+    # а не на досвоповой. Иначе пропорция токенов не совпадёт с диапазоном и mint
+    # упадёт на Price slippage check.
+    pool_state = get_pool_state(client)
     bal0, bal1 = _wallet_balances(client, pool_state)
 
     tick_lower, tick_upper = math_utils.symmetric_range_ticks(
@@ -128,7 +132,10 @@ def open_position(client, cfg, pool_state: dict) -> dict:
     client.ensure_allowance(pool_state["token0"], cfg.position_manager, bal0)
     client.ensure_allowance(pool_state["token1"], cfg.position_manager, bal1)
 
-    slip = cfg.slippage_bps / 10000
+    # amount*Min = 0: при двустороннем mint контракт берёт 100% лимитирующего токена
+    # и часть второго по пропорции диапазона, поэтому требовать высокий минимум по обоим
+    # нельзя — остаток просто останется на кошельке до следующего цикла. Защита от
+    # манипуляции ценой здесь — сам факт фиксированного ценового диапазона и deadline.
     params = (
         Web3.to_checksum_address(pool_state["token0"]),
         Web3.to_checksum_address(pool_state["token1"]),
@@ -137,8 +144,8 @@ def open_position(client, cfg, pool_state: dict) -> dict:
         tick_upper,
         bal0,
         bal1,
-        int(bal0 * (1 - slip)),
-        int(bal1 * (1 - slip)),
+        0,
+        0,
         client.account.address,
         int(time.time()) + DEADLINE_SECONDS,
     )

@@ -1,3 +1,4 @@
+import os
 import sys
 
 from .config import load_config
@@ -13,7 +14,13 @@ def run() -> int:
 
     elapsed = seconds_since_last_check(state)
     min_interval = cfg.check_interval_hours * 3600
-    if elapsed is not None and elapsed < min_interval:
+    # Ручной запуск (workflow_dispatch) — явная команда оператора: гард не
+    # применяем. Кейс 02.07: после ошибочного тика (low gas) оператор пополнил
+    # кошелёк и дёрнул Run workflow — а гард срезал ран («424 сек < 10800»),
+    # потому что error-ветка тоже помечает «проверено». Гард — анти-дребезг
+    # для крона, не для человека.
+    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+    if not manual and elapsed is not None and elapsed < min_interval:
         logger.info("С последней проверки прошло %.0f сек (< %.0f сек) — выходим без действий",
                     elapsed, min_interval)
         return 0

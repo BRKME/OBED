@@ -58,6 +58,25 @@ def symmetric_range_ticks(current_tick: int, sqrt_price_x96: int, range_width_pc
     return tick_lower, tick_upper
 
 
+def min_amount_out(sqrt_price_x96: int, amount_in: int, fee_ppm: int, slippage_bps: int,
+                    zero_for_one: bool) -> int:
+    """
+    Минимально допустимый amount_out для exact-in свопа (защита от сэндвича/MEV).
+
+    Ожидаемый выход считается по текущей цене пула минус комиссия пула (fee_ppm,
+    миллионные доли: 10000 = 1%), затем применяется допуск slippage_bps (б.п.:
+    100 = 1%). Всё в raw-единицах токенов — decimals не нужны, т.к. price_raw
+    уже связывает raw token1 с raw token0.
+
+    zero_for_one=True: своп token0 -> token1 (out = in * price_raw).
+    zero_for_one=False: своп token1 -> token0 (out = in / price_raw).
+    """
+    price_raw = price_raw_from_sqrt_price_x96(sqrt_price_x96)
+    amount_after_fee = amount_in * (1 - fee_ppm / 1_000_000)
+    expected = amount_after_fee * price_raw if zero_for_one else amount_after_fee / price_raw
+    return int(expected * (1 - slippage_bps / 10_000))
+
+
 def fees_value_in_payout(tokens_owed0: int, tokens_owed1: int, decimals0: int, decimals1: int,
                           price_human_t1_per_t0: float, payout_is_token0: bool) -> float:
     """Оценка стоимости накопленных комиссий в payout-токене по текущей цене пула."""

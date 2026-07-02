@@ -24,7 +24,7 @@ pool:
 
 position:
   range_width_pct: 10      # ширина нового диапазона: ±10% от текущей цены
-  check_interval_hours: 4   # бот не проверяет чаще этого интервала
+  check_interval_hours: 3   # бот не проверяет чаще этого интервала
   slippage_bps: 100         # допустимый slippage при свопах/минте, в б.п. (100 = 1%)
 
 fees:

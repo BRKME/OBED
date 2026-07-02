@@ -30,3 +30,5 @@
 {"ts": 1782929218.7840235, "time_utc": "2026-07-01T18:06:58Z", "action": "tick_complete", "price": 0.750132150335347, "tx_hash": null, "fees_usd": null}
 {"ts": 1782965748.479586, "time_utc": "2026-07-02T04:15:48Z", "action": "tick_complete", "price": 0.7617301775101571, "tx_hash": null, "fees_usd": null}
 {"ts": 1782989387.3119438, "time_utc": "2026-07-02T10:49:47Z", "action": "tick_complete", "price": 0.7655381763927748, "tx_hash": null, "fees_usd": null}
+{"ts": 1783011010.269327, "time_utc": "2026-07-02T16:50:10Z", "action": "close_position", "price": 0.7791324984285962, "tx_hash": "0xeab2511cab82f8285e13c41d950ffed04dab112fb5bc127bd258a21ac89fd242", "fees_usd": null, "token_id": 2399463}
+{"ts": 1783011013.9534476, "time_utc": "2026-07-02T16:50:13Z", "action": "error", "price": 0.7791324984285962, "tx_hash": null, "fees_usd": null, "error": "{'code': -32000, 'message': 'insufficient funds for gas * price + value: balance 28638566774147, tx cost 31753450000000, overshot 3114883225853'}"}

@@ -19,6 +19,24 @@ def run() -> int:
         return 0
 
     client = ChainClient(cfg)
+
+    # Preflight по газу ДО любых транзакций. Кейс 02.07: reopen-цепочка из 7
+    # транзакций высушила BNB и упала на ПОСЛЕДНЕМ шаге (mint), не хватило
+    # $0.002 — позиция уже была закрыта, средства повисли вне пула. Порог —
+    # с запасом на полный цикл close->swap->mint (~8 tx). При нехватке — выйти
+    # громко (красный ран), НЕ трогая позицию и не сжигая остаток на approve.
+    MIN_GAS_WEI = int(0.0003 * 1e18)   # ~10x стоимость mint на BSC
+    native = client.w3.eth.get_balance(client.account.address)
+    if native < MIN_GAS_WEI:
+        logger.error(
+            "Мало газа: %.6f BNB на %s (нужно >= %.4f BNB). Пополни кошелёк — "
+            "тик пропущен ДО транзакций, позиция не тронута.",
+            native / 1e18, client.account.address, MIN_GAS_WEI / 1e18)
+        log_action(cfg.log_file, "low_gas", error=f"balance={native/1e18:.6f} BNB")
+        mark_checked_now(state)
+        save_state(cfg.state_file, state)
+        return 1
+
     pool_state = pm.get_pool_state(client)
     logger.info("Текущая цена пула: %.8f (token1/token0), tick=%s",
                 pool_state["price_t1_per_t0"], pool_state["tick"])

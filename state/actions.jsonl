@@ -100,3 +100,6 @@
 {"ts": 1784085795.574427, "time_utc": "2026-07-15T03:23:15Z", "action": "tick_complete", "price": 0.9592148210399732, "tx_hash": null, "fees_usd": null}
 {"ts": 1784096662.6450224, "time_utc": "2026-07-15T06:24:22Z", "action": "tick_complete", "price": 0.9592148210399732, "tx_hash": null, "fees_usd": null}
 {"ts": 1784110240.6224074, "time_utc": "2026-07-15T10:10:40Z", "action": "tick_complete", "price": 0.9642326687663513, "tx_hash": null, "fees_usd": null}
+{"ts": 1784124191.0503695, "time_utc": "2026-07-15T14:03:11Z", "action": "close_position", "price": 0.9958917608101586, "tx_hash": "0xda6535df3d3e4923328ba30e1c395e739ecbe21dc572f7ceb20e48edcef51ad3", "fees_usd": null, "token_id": 2477805}
+{"ts": 1784124201.6520247, "time_utc": "2026-07-15T14:03:21Z", "action": "open_position", "price": 0.9978286466927496, "tx_hash": "0xe2ca522c6c962c09634b85f86b6cc4d358750e5b481bd272a674d5f496cee96a", "fees_usd": null, "token_id": 2500524, "tick_lower": -1200, "tick_upper": 1000}
+{"ts": 1784124201.652888, "time_utc": "2026-07-15T14:03:21Z", "action": "tick_complete", "price": 0.9958917608101586, "tx_hash": null, "fees_usd": null}

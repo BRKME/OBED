@@ -151,3 +151,4 @@
 {"ts": 1784841454.1637297, "time_utc": "2026-07-23T21:17:34Z", "action": "open_position", "price": 0.884191580790259, "tx_hash": "0x4522646993a83ce6fd825892ac708a6dcf07da601dc3cfffd13681cca08dde7d", "fees_usd": null, "token_id": 2535069, "tick_lower": -2400, "tick_upper": -200}
 {"ts": 1784841454.1646266, "time_utc": "2026-07-23T21:17:34Z", "action": "tick_complete", "price": 0.8855368952416258, "tx_hash": null, "fees_usd": null}
 {"ts": 1784864113.7346148, "time_utc": "2026-07-24T03:35:13Z", "action": "tick_complete", "price": 0.8884481067010136, "tx_hash": null, "fees_usd": null}
+{"ts": 1784874926.0107563, "time_utc": "2026-07-24T06:35:26Z", "action": "tick_complete", "price": 0.890521023838065, "tx_hash": null, "fees_usd": null}

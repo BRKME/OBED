@@ -160,3 +160,4 @@
 {"ts": 1784973464.4053774, "time_utc": "2026-07-25T09:57:44Z", "action": "tick_complete", "price": 0.8470949652342874, "tx_hash": null, "fees_usd": null}
 {"ts": 1784987746.6603134, "time_utc": "2026-07-25T13:55:46Z", "action": "tick_complete", "price": 0.8470949652342874, "tx_hash": null, "fees_usd": null}
 {"ts": 1784999449.5093117, "time_utc": "2026-07-25T17:10:49Z", "action": "tick_complete", "price": 0.8456519783779525, "tx_hash": null, "fees_usd": null}
+{"ts": 1785013442.8102965, "time_utc": "2026-07-25T21:04:02Z", "action": "tick_complete", "price": 0.8523094778498288, "tx_hash": null, "fees_usd": null}

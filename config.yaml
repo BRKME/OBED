@@ -32,7 +32,9 @@ fees:
   # свапает ZEC->WBNB через этот же пул и шлёт WBNB на адрес "на обед".
   payout_token_address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"  # WBNB
   threshold_payout_token: 0.02   # порог вывода в единицах WBNB
-  withdrawal_address: "0x107DF98E0eC52B8BEee9F7673ebca3751CC00E40"
+  # 13.07.2026: адрес вывода заменён по указанию оператора (чексумма EIP-55
+  # проверена). Старый: 0x107DF98E0eC52B8BEee9F7673ebca3751CC00E40
+  withdrawal_address: "0x17D9cFE2084A50077E44892c1590Ea0069ac2DaF"
 
 paths:
   state_file: "state/state.json"

@@ -123,3 +123,13 @@ SWAP_ROUTER02_ABI = [
      ]}],
      "outputs": [{"name": "amountOut", "type": "uint256"}]},
 ]
+
+
+# WBNB/WETH-обёртка: withdraw(uint256) разворачивает токен в нативную монету.
+# Добавлено 22.08.2026 — payout уходил токеном WBNB на свежий кошелёк с нулевым
+# газовым балансом, получатель не мог его развернуть без пополнения. Шлём нативный BNB.
+WNATIVE_ABI = [
+    {"constant": False,
+     "inputs": [{"name": "wad", "type": "uint256"}],
+     "name": "withdraw", "outputs": [], "type": "function"},
+]

@@ -2,7 +2,8 @@ from web3 import Web3
 from web3.middleware import geth_poa_middleware
 from eth_account import Account
 
-from .abis import ERC20_ABI, POOL_ABI, FACTORY_ABI, POSITION_MANAGER_ABI, SWAP_ROUTER02_ABI
+from .abis import (ERC20_ABI, POOL_ABI, FACTORY_ABI, POSITION_MANAGER_ABI,
+                    SWAP_ROUTER02_ABI, WNATIVE_ABI)
 from .logger import logger
 
 
@@ -36,6 +37,30 @@ class ChainClient:
 
     def erc20(self, address: str):
         return self.w3.eth.contract(address=Web3.to_checksum_address(address), abi=ERC20_ABI)
+
+    def wnative(self, address: str):
+        """Контракт обёртки нативной монеты (WBNB) — для withdraw()."""
+        return self.w3.eth.contract(address=Web3.to_checksum_address(address), abi=WNATIVE_ABI)
+
+    def send_native(self, to: str, amount_wei: int) -> dict:
+        """Перевод нативной монеты (BNB). Газ платится из баланса бота."""
+        addr = self.account.address
+        tx = {
+            "from": addr,
+            "to": Web3.to_checksum_address(to),
+            "value": int(amount_wei),
+            "nonce": self.w3.eth.get_transaction_count(addr, "pending"),
+            "gas": 21000,
+            "chainId": self.cfg.chain_id,
+            "gasPrice": self.w3.eth.gas_price,
+        }
+        signed = self.account.sign_transaction(tx)
+        tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+        logger.info("Нативный перевод отправлен: %s", tx_hash.hex())
+        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        if receipt.status != 1:
+            raise RuntimeError(f"Перевод {tx_hash.hex()} завершился с ошибкой")
+        return receipt
 
     def send_tx(self, func_call, value: int = 0) -> dict:
         """Подписывает и отправляет транзакцию, ждёт receipt. Возвращает receipt (dict-like)."""

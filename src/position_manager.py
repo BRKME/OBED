@@ -236,11 +236,21 @@ def check_and_collect_fees(client, cfg, token_id: int, pool_state: dict) -> None
 
     payout_balance = client.erc20(payout_token).functions.balanceOf(client.account.address).call()
     if payout_balance > 0:
-        transfer_receipt = client.send_tx(
-            client.erc20(payout_token).functions.transfer(
-                Web3.to_checksum_address(cfg.withdrawal_address), payout_balance))
-        logger.info("Комиссии отправлены на %s: %s (tx=%s)", cfg.withdrawal_address,
-                    payout_balance, transfer_receipt.transactionHash.hex())
+        # 22.08.2026: разворачиваем WBNB в нативный BNB перед отправкой.
+        # Раньше уходил ERC-20 токен: на свежем кошельке с нулевым газовым
+        # балансом получатель не мог его ни развернуть, ни перевести, а на
+        # биржевой депозит WBNB вообще не зачисляется. Нативная монета
+        # универсальна и сразу тратится на газ.
+        native_before = client.w3.eth.get_balance(client.account.address)
+        client.send_tx(client.wnative(payout_token).functions.withdraw(payout_balance))
+        native_after = client.w3.eth.get_balance(client.account.address)
+        # отправляем ровно развёрнутую сумму, газовый резерв бота не трогаем
+        unwrapped = max(0, native_after - native_before)
+        amount_to_send = min(payout_balance, unwrapped) if unwrapped else payout_balance
+        transfer_receipt = client.send_native(cfg.withdrawal_address, amount_to_send)
+        logger.info("Комиссии отправлены (нативный BNB) на %s: %s (tx=%s)",
+                    cfg.withdrawal_address, amount_to_send,
+                    transfer_receipt.transactionHash.hex())
         log_action(cfg.log_file, "withdraw_fees", price=pool_state["price_t1_per_t0"],
                    tx_hash=transfer_receipt.transactionHash.hex(), fees_usd=fees_value,
-                   token_id=token_id, amount_payout=payout_balance)
+                   token_id=token_id, amount_payout=amount_to_send, asset="native")

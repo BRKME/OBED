@@ -314,3 +314,5 @@
 {"ts": 1787344494.2298567, "time_utc": "2026-08-21T20:34:54Z", "action": "open_position", "price": 1.0491485584618618, "tx_hash": "0x59c561fa6d3e71acb35400d1b0726d4e76b537aeeb36286576d8ed25bd16b8f5", "fees_usd": null, "token_id": 2666151, "tick_lower": -600, "tick_upper": 1600}
 {"ts": 1787344494.2306592, "time_utc": "2026-08-21T20:34:54Z", "action": "tick_complete", "price": 1.0471427041751589, "tx_hash": null, "fees_usd": null}
 {"ts": 1787363077.951211, "time_utc": "2026-08-22T01:44:37Z", "action": "tick_complete", "price": 1.1007265791236558, "tx_hash": null, "fees_usd": null}
+{"ts": 1787388059.5515804, "time_utc": "2026-08-22T08:40:59Z", "action": "withdraw_fees", "price": 1.1205827291426573, "tx_hash": "0xe9219fc62b3baea12d20b5c10687ea2582449f9e6fac3685c9801c5663cbec49", "fees_usd": 0.024458774882508156, "token_id": 2666151, "amount_payout": 24347697516652992}
+{"ts": 1787388059.5522234, "time_utc": "2026-08-22T08:40:59Z", "action": "tick_complete", "price": 1.1205827291426573, "tx_hash": null, "fees_usd": null}

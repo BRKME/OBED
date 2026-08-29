@@ -349,3 +349,4 @@
 {"ts": 1787915613.3912654, "time_utc": "2026-08-28T11:13:33Z", "action": "tick_complete", "price": 1.1230325951065567, "tx_hash": null, "fees_usd": null}
 {"ts": 1787955170.2773504, "time_utc": "2026-08-28T22:12:50Z", "action": "withdraw_fees", "price": 1.1526152508238205, "tx_hash": "0xbc060daddeb18f788348ce968bf6e0a22466cf8460a5535e1ef4a625af618875", "fees_usd": 0.02161127611477609, "token_id": 2669434, "amount_payout": 21495515839966593, "asset": "native"}
 {"ts": 1787955170.2779644, "time_utc": "2026-08-28T22:12:50Z", "action": "tick_complete", "price": 1.1526152508238205, "tx_hash": null, "fees_usd": null}
+{"ts": 1787986671.3006139, "time_utc": "2026-08-29T06:57:51Z", "action": "tick_complete", "price": 1.1636469504552556, "tx_hash": null, "fees_usd": null}

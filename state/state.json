@@ -1,9 +1,9 @@
 {
   "position": {
-    "token_id": 2760194,
-    "tick_lower": 5200,
-    "tick_upper": 7400
+    "token_id": 2794997,
+    "tick_lower": 6600,
+    "tick_upper": 8800
   },
-  "last_check_ts": 1790449855.598264,
+  "last_check_ts": 1790462416.460349,
   "schema_version": 1
 }

@@ -261,7 +261,8 @@ class TestVerifyOnRealConfig(unittest.TestCase):
     def test_check_on_unfilled_robinhood_config(self):
         rh = config_mod.load_config(str(ROOT / "config.robinhood.yaml"))
         facts = _facts(pool_from_factory=None, pool_token0=None, pool_token1=None,
-                       pool_fee=None)
+                       pool_fee=None, npm_weth9=rh.wrapped_native,
+                       router_weth9=rh.wrapped_native)
         self.assertEqual(verify.check(facts, rh), [])
 
 

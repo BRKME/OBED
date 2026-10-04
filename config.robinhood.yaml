@@ -25,9 +25,9 @@ contracts:
   factory: "0x1f7d7550b1b028f7571e69a784071f0205fd2efa"
   position_manager: "0x73991a25c818bf1f1128deaab1492d45638de0d3"
   swap_router02: "0xcaf681a66d020601342297493863e78c959e5cb2"
-  # WETH в SDK для этой сети не указан. Берётся из NPM.WETH9() — verify
-  # печатает его; вписать сюда после первого зелёного verify.
-  wrapped_native: ""
+  # WETH в SDK для этой сети не указан. Значение — NPM.WETH9() и
+  # SwapRouter02.WETH9() с цепи (совпали, verify 04.10.2026).
+  wrapped_native: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
 
 pool:
   # Пара не выбрана. Заполнить из адреса пула; token0/token1 — в порядке,

@@ -1,0 +1,57 @@
+# Второй инстанс OBED — BSC, второй кошелёк.
+# Тот же Uniswap V3 и та же сеть, что у первого (config.yaml), но свой кошелёк,
+# свой пул, свой state. Общего с первым — только код и адрес вывода «на обед».
+# Ключ — только в GitHub Actions secret BOT_PRIVATE_KEY_2.
+#
+# Отдельный кошелёк обязателен: бот считает своим весь свободный баланс
+# кошелька, две позиции на одном кошельке мешали бы друг другу.
+#
+# Включение (enabled: true) — после зелёного `python -m src.verify` на
+# заполненном пуле. Пока enabled: false, тик не трогает сеть и не требует ключа.
+
+name: bsc2
+enabled: false
+
+secrets:
+  private_key_env: BOT_PRIVATE_KEY_2
+
+stats:
+  unit_label: "WBNB"
+
+network:
+  chain_id: 56
+  rpc_url: "https://bsc-dataseed.binance.org/"
+  rpc_fallback_urls:
+    - "https://bsc-dataseed1.defibit.io/"
+    - "https://bsc-dataseed1.ninicoin.io/"
+    - "https://bsc.publicnode.com"
+
+contracts:
+  # те же, что в config.yaml; verify сверяет их между собой на цепи
+  factory: "0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7"
+  position_manager: "0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613"
+  swap_router02: "0xB971eF87ede563556b2ED4b1C0b0019111Dd85d2"
+  wrapped_native: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"   # WBNB
+
+pool:
+  # Пара не выбрана. Должна содержать WBNB: комиссии свапаются в WBNB через
+  # этот же пул и уходят нативным BNB. token0/token1 — в порядке пула.
+  address: ""
+  token0: ""
+  token1: ""
+  fee_tier: null
+
+position:
+  range_width_pct: 10
+  check_interval_hours: 3
+  slippage_bps: 100
+  min_gas_native: 0.0003
+
+fees:
+  payout_token_address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"  # WBNB -> нативный BNB
+  threshold_payout_token: 0.02
+  withdrawal_address: "0x17D9cFE2084A50077E44892c1590Ea0069ac2DaF"   # тот же, что у первого
+
+paths:
+  state_file: "state/bsc2/state.json"
+  log_file: "state/bsc2/actions.jsonl"

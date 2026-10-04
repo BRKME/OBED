@@ -8,7 +8,7 @@ on:
       instance:
         description: "Какой инстанс запустить"
         type: choice
-        options: [all, bsc, robinhood]
+        options: [all, bsc, bsc2]
         default: all
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
   # одного не останавливает другой, но каждый красный ран виден отдельно.
   run:
     name: bsc
-    if: github.event_name == 'schedule' || inputs.instance != 'robinhood'
+    if: github.event_name == 'schedule' || inputs.instance != 'bsc2'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,12 +60,12 @@ jobs:
           done
           exit 1
 
-  robinhood:
-    name: robinhood
+  bsc2:
+    name: bsc2
     if: github.event_name == 'schedule' || inputs.instance != 'bsc'
     runs-on: ubuntu-latest
     env:
-      OBED_CONFIG: config.robinhood.yaml
+      OBED_CONFIG: config.bsc2.yaml
     steps:
       - uses: actions/checkout@v4
 
@@ -83,7 +83,7 @@ jobs:
 
       - name: Run bot tick
         env:
-          BOT_PRIVATE_KEY_ROBINHOOD: ${{ secrets.BOT_PRIVATE_KEY_ROBINHOOD }}
+          BOT_PRIVATE_KEY_2: ${{ secrets.BOT_PRIVATE_KEY_2 }}
         run: python -m src.main
 
       - name: LP vs HODL report
@@ -96,9 +96,9 @@ jobs:
         run: |
           git config user.name "obed-bot"
           git config user.email "obed-bot@users.noreply.github.com"
-          git add state/robinhood/
+          git add state/bsc2/
           git diff --quiet --cached && exit 0
-          git commit -m "obed[robinhood]: state update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git commit -m "obed[bsc2]: state update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           for i in 1 2 3 4; do
             git pull --rebase -q origin main && git push && exit 0
             sleep $((i * 5))

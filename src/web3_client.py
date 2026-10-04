@@ -53,8 +53,8 @@ class ChainClient:
             "chainId": self.cfg.chain_id,
             "gasPrice": self.w3.eth.gas_price,
         }
-        # Не 21000 жёстко: на Arbitrum Orbit (Robinhood Chain) в лимит газа входит
-        # стоимость публикации данных в L1, и 21000 не хватает даже на простой перевод.
+        # Не 21000 жёстко: получатель может оказаться контрактом, а на L2 в лимит
+        # газа входит ещё и стоимость данных в L1. На BSC оценка вернёт те же 21000.
         tx["gas"] = int(self.w3.eth.estimate_gas(tx) * 1.2)
         signed = self.account.sign_transaction(tx)
         tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)

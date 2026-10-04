@@ -1,4 +1,4 @@
-"""Второй инстанс (Robinhood Chain): конфиг, вывод комиссий, сверка контрактов."""
+"""Второй инстанс (bsc2): конфиг, вывод комиссий, сверка контрактов."""
 import json
 import os
 import tempfile
@@ -29,10 +29,9 @@ def _cfg(**over):
 
 class TestConfig(unittest.TestCase):
     def test_env_selects_config_file(self):
-        with mock.patch.dict(os.environ, {"OBED_CONFIG": "config.robinhood.yaml"}):
+        with mock.patch.dict(os.environ, {"OBED_CONFIG": "config.bsc2.yaml"}):
             cfg = config_mod.load_config()
-        self.assertEqual(cfg.chain_id, 4663)
-        self.assertEqual(cfg.name, "robinhood")
+        self.assertEqual(cfg.name, "bsc2")
 
     def test_default_config_is_bsc(self):
         with mock.patch.dict(os.environ, {}, clear=False):
@@ -43,10 +42,10 @@ class TestConfig(unittest.TestCase):
 
     def test_instances_never_share_state(self):
         bsc = config_mod.load_config(str(ROOT / "config.yaml"))
-        rh = config_mod.load_config(str(ROOT / "config.robinhood.yaml"))
-        self.assertNotEqual(bsc.state_file, rh.state_file)
-        self.assertNotEqual(bsc.log_file, rh.log_file)
-        self.assertNotEqual(bsc.private_key_env, rh.private_key_env)
+        b2 = config_mod.load_config(str(ROOT / "config.bsc2.yaml"))
+        self.assertNotEqual(bsc.state_file, b2.state_file)
+        self.assertNotEqual(bsc.log_file, b2.log_file)
+        self.assertNotEqual(bsc.private_key_env, b2.private_key_env)
 
     def test_bsc_keeps_live_paths_and_key(self):
         # живой бот не должен потерять свою позицию из-за рефакторинга
@@ -55,18 +54,25 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(bsc.private_key_env, "BOT_PRIVATE_KEY")
 
     def test_private_key_read_from_instance_env(self):
-        rh = config_mod.load_config(str(ROOT / "config.robinhood.yaml"))
-        with mock.patch.dict(os.environ, {rh.private_key_env: "ab" * 32}):
-            self.assertEqual(rh.private_key, "0x" + "ab" * 32)
+        b2 = config_mod.load_config(str(ROOT / "config.bsc2.yaml"))
+        with mock.patch.dict(os.environ, {b2.private_key_env: "ab" * 32}):
+            self.assertEqual(b2.private_key, "0x" + "ab" * 32)
 
     def test_wrapped_native_falls_back_to_legacy_wbnb_key(self):
         bsc = config_mod.load_config(str(ROOT / "config.yaml"))
         self.assertEqual(bsc.wrapped_native.lower(),
                          "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c")
 
-    def test_robinhood_ships_disabled(self):
-        rh = config_mod.load_config(str(ROOT / "config.robinhood.yaml"))
-        self.assertFalse(rh.enabled)
+    def test_bsc2_uses_same_chain_contracts_as_bsc(self):
+        bsc = config_mod.load_config(str(ROOT / "config.yaml"))
+        b2 = config_mod.load_config(str(ROOT / "config.bsc2.yaml"))
+        for attr in ("chain_id", "factory", "position_manager", "swap_router02",
+                     "wrapped_native", "withdrawal_address"):
+            self.assertEqual(str(getattr(bsc, attr)).lower(), str(getattr(b2, attr)).lower(), attr)
+
+    def test_bsc2_ships_disabled(self):
+        b2 = config_mod.load_config(str(ROOT / "config.bsc2.yaml"))
+        self.assertFalse(b2.enabled)
 
     def test_min_gas_default(self):
         self.assertAlmostEqual(_cfg().min_gas_native, 0.0003)
@@ -233,7 +239,7 @@ class TestVerify(unittest.TestCase):
 
 class TestDisabledInstance(unittest.TestCase):
     def test_disabled_does_nothing_and_needs_no_key(self):
-        raw = yaml.safe_load((ROOT / "config.robinhood.yaml").read_text())
+        raw = yaml.safe_load((ROOT / "config.bsc2.yaml").read_text())
         raw["enabled"] = False
         with tempfile.TemporaryDirectory() as d:
             raw["paths"] = {"state_file": f"{d}/s.json", "log_file": f"{d}/a.jsonl"}
@@ -252,18 +258,21 @@ class TestDisabledInstance(unittest.TestCase):
 class TestVerifyOnRealConfig(unittest.TestCase):
     """Регрессия 04.10: на незаполненном пуле verify падал на cfg.pool_address."""
 
-    def test_todo_on_unfilled_robinhood_config(self):
-        rh = config_mod.load_config(str(ROOT / "config.robinhood.yaml"))
-        items = verify.todo(rh)
-        self.assertTrue(any("pool" in x for x in items))
-        self.assertTrue(any("withdrawal" in x for x in items))
+    def _facts_for(self, cfg):
+        return _facts(chain_id=cfg.chain_id, npm_factory=cfg.factory, router_factory=cfg.factory,
+                      npm_weth9=cfg.wrapped_native, router_weth9=cfg.wrapped_native,
+                      pool_from_factory=None, pool_token0=None, pool_token1=None,
+                      pool_fee=None)
 
-    def test_check_on_unfilled_robinhood_config(self):
-        rh = config_mod.load_config(str(ROOT / "config.robinhood.yaml"))
-        facts = _facts(pool_from_factory=None, pool_token0=None, pool_token1=None,
-                       pool_fee=None, npm_weth9=rh.wrapped_native,
-                       router_weth9=rh.wrapped_native)
-        self.assertEqual(verify.check(facts, rh), [])
+    def test_todo_on_unfilled_bsc2_config(self):
+        b2 = config_mod.load_config(str(ROOT / "config.bsc2.yaml"))
+        items = verify.todo(b2)
+        self.assertTrue(any("pool" in x for x in items))
+        self.assertFalse(any("withdrawal" in x for x in items))   # адрес тот же, что у bsc
+
+    def test_check_on_unfilled_bsc2_config(self):
+        b2 = config_mod.load_config(str(ROOT / "config.bsc2.yaml"))
+        self.assertEqual(verify.check(self._facts_for(b2), b2), [])
 
 
 if __name__ == "__main__":

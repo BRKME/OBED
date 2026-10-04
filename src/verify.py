@@ -7,7 +7,7 @@ NPM.factory() и SwapRouter02.factory() должны указывать на fac
 factory.getPool() возвращает для этой пары и fee tier. Опечатка или чужой
 адрес в любом месте даёт красный ран, а не потерянные деньги.
 
-    OBED_CONFIG=config.robinhood.yaml python -m src.verify
+    OBED_CONFIG=config.bsc2.yaml python -m src.verify
 
 Код возврата 1 — расхождение (или инстанс включён, но не дозаполнен).
 """

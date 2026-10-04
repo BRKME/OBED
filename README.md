@@ -63,7 +63,7 @@ summary каждого рана Actions. Меньше 30 дней данных �
 и в HODL. Если тик упал без снимка, сверка в следующем тике пропускается
 (`flow_check_skipped`) и отчёт об этом предупреждает.
 
-## Несколько инстансов (BSC + Robinhood Chain)
+## Несколько инстансов (два кошелька на BSC)
 
 Каждый инстанс — свой конфиг, свой кошелёк, свой секрет и свой `state/`; общего у них
 только код. Это сделано намеренно: бот считает своим весь свободный баланс кошелька,
@@ -72,12 +72,12 @@ summary каждого рана Actions. Меньше 30 дней данных �
 | инстанс | конфиг | секрет | state |
 |---|---|---|---|
 | bsc | `config.yaml` | `BOT_PRIVATE_KEY` | `state/` |
-| robinhood | `config.robinhood.yaml` | `BOT_PRIVATE_KEY_ROBINHOOD` | `state/robinhood/` |
+| bsc2 | `config.bsc2.yaml` | `BOT_PRIVATE_KEY_2` | `state/bsc2/` |
 
 Какой конфиг брать, решает переменная `OBED_CONFIG` (по умолчанию `config.yaml`). В
 Actions это отдельные джобы одного воркфлоу; ручной запуск позволяет выбрать инстанс.
 
-Перед каждым тиком Robinhood `python -m src.verify` сверяет конфиг с цепью (только
+Перед каждым тиком bsc2 `python -m src.verify` сверяет конфиг с цепью (только
 чтение): `NPM.factory()` и `SwapRouter02.factory()` = factory из конфига, `WETH9` у обоих
 = `wrapped_native`, пул = `factory.getPool(token0, token1, fee)`, порядок токенов,
 payout-токен в паре, адрес вывода — кошелёк, а не контракт. Расхождение — красный ран,

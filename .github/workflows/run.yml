@@ -79,6 +79,9 @@ jobs:
       # Сверка адресов с цепью перед каждым тиком. Только чтение, без ключа.
       # Расхождение — красный ран, тик не запускается.
       - name: Verify config against chain
+        env:
+          # только чтобы показать адрес кошелька бота; сам ключ не печатается
+          BOT_PRIVATE_KEY_2: ${{ secrets.BOT_PRIVATE_KEY_2 }}
         run: python -m src.verify | tee -a "$GITHUB_STEP_SUMMARY"; exit ${PIPESTATUS[0]}
 
       - name: Run bot tick

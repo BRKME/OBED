@@ -138,9 +138,45 @@ def main() -> int:
     elif not problems:
         print("\n✅ Контракты сходятся с цепью; осталось дозаполнить конфиг.")
 
+    _print_wallet(cfg)
+
     if problems or (cfg.enabled and missing):
         return 1
     return 0
+
+
+def _print_wallet(cfg) -> None:
+    """
+    Адрес кошелька бота и его балансы — чтобы оператор видел, куда пополнять,
+    и что секрет с ключом добавлен. Печатается только адрес (он публичный),
+    сам ключ — никогда. Без ключа — просто сообщение, не ошибка.
+    """
+    from eth_account import Account
+    from .abis import ERC20_ABI
+    from .web3_client import connect
+
+    try:
+        address = Account.from_key(cfg.private_key).address
+    except Exception:  # noqa: BLE001 — нет секрета или он кривой; текст ошибки не печатаем
+        print(f"\n**Кошелёк бота:** секрет `{cfg.private_key_env}` не задан или не читается.")
+        return
+
+    w3 = connect(cfg.rpc_urls)
+    native = w3.eth.get_balance(address) / 1e18
+    print(f"\n**Кошелёк бота:** `{address}`")
+    print(f"- нативная монета (газ): {native:.6f}")
+    tokens = {"wrapped_native": cfg.wrapped_native,
+              "token0": cfg.pool_token0, "token1": cfg.pool_token1}
+    seen = set()
+    for label, addr in tokens.items():
+        if not addr or addr.lower() in seen:
+            continue
+        seen.add(addr.lower())
+        t = w3.eth.contract(address=Web3.to_checksum_address(addr), abi=ERC20_ABI)
+        bal = t.functions.balanceOf(address).call() / 10 ** t.functions.decimals().call()
+        print(f"- {label} `{addr}`: {bal:.6f}")
+    if native < cfg.min_gas_native:
+        print(f"- ⚠️ газа меньше {cfg.min_gas_native} — бот не начнёт работу")
 
 
 if __name__ == "__main__":

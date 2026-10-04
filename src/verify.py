@@ -20,22 +20,32 @@ def _eq(a, b) -> bool:
     return bool(a) and bool(b) and str(a).lower() == str(b).lower()
 
 
+def _opt(cfg, name: str) -> str:
+    """Поле конфига или "" — свойства pool_address/withdrawal_address бросают на пустом."""
+    try:
+        return getattr(cfg, name) or ""
+    except ValueError:
+        return ""
+
+
 def todo(cfg) -> list:
     """Что ещё не заполнено. Для выключенного инстанса — не ошибка."""
+    pool_addr, wd_addr = _opt(cfg, "pool_address"), _opt(cfg, "withdrawal_address")
     items = []
     if not cfg.wrapped_native:
         items.append("contracts.wrapped_native — вписать значение NPM.WETH9() из вывода ниже")
-    if not cfg.pool_address:
+    if not pool_addr:
         items.append("pool.address / token0 / token1 / fee_tier — пара не выбрана")
     if not cfg.payout_token_address:
         items.append("fees.payout_token_address")
-    if not cfg.withdrawal_address:
+    if not wd_addr:
         items.append("fees.withdrawal_address — адрес «на обед» в этой сети")
     return items
 
 
 def check(facts: dict, cfg) -> list:
     """Расхождения конфига с цепью. Пустой список — всё сходится."""
+    pool_addr, wd_addr = _opt(cfg, "pool_address"), _opt(cfg, "withdrawal_address")
     p = []
     if facts["chain_id"] != cfg.chain_id:
         p.append(f"chain_id сети {facts['chain_id']}, в конфиге {cfg.chain_id}")
@@ -50,10 +60,10 @@ def check(facts: dict, cfg) -> list:
         p.append(f"NPM.WETH9() = {facts['npm_weth9']}, в конфиге wrapped_native "
                  f"{cfg.wrapped_native}")
 
-    if cfg.pool_address:
-        if not _eq(facts["pool_from_factory"], cfg.pool_address):
+    if pool_addr:
+        if not _eq(facts["pool_from_factory"], pool_addr):
             p.append(f"factory.getPool(token0, token1, {cfg.fee_tier}) = "
-                     f"{facts['pool_from_factory']}, в конфиге пул {cfg.pool_address}")
+                     f"{facts['pool_from_factory']}, в конфиге пул {pool_addr}")
         if not (_eq(facts["pool_token0"], cfg.pool_token0)
                 and _eq(facts["pool_token1"], cfg.pool_token1)):
             p.append(f"пул отдаёт token0={facts['pool_token0']} token1={facts['pool_token1']}, "
@@ -65,13 +75,14 @@ def check(facts: dict, cfg) -> list:
                 or _eq(cfg.payout_token_address, cfg.pool_token1)):
             p.append("payout-токен не входит в пул — своп комиссий не пройдёт")
 
-    if cfg.withdrawal_address and facts.get("withdrawal_code_size"):
-        p.append(f"withdrawal_address {cfg.withdrawal_address} — контракт, а не кошелёк: "
+    if wd_addr and facts.get("withdrawal_code_size"):
+        p.append(f"withdrawal_address {wd_addr} — контракт, а не кошелёк: "
                  f"может не принять перевод")
     return p
 
 
 def gather(cfg) -> dict:
+    pool_addr, wd_addr = _opt(cfg, "pool_address"), _opt(cfg, "withdrawal_address")
     from .abis import FACTORY_ABI, POOL_ABI, POSITION_MANAGER_ABI, SWAP_ROUTER02_ABI
     from .web3_client import connect
 
@@ -88,18 +99,18 @@ def gather(cfg) -> dict:
         "pool_from_factory": None, "pool_token0": None, "pool_token1": None, "pool_fee": None,
         "withdrawal_code_size": 0,
     }
-    if cfg.pool_address:
+    if pool_addr:
         factory = c(cfg.factory, FACTORY_ABI)
         facts["pool_from_factory"] = factory.functions.getPool(
             Web3.to_checksum_address(cfg.pool_token0), Web3.to_checksum_address(cfg.pool_token1),
             cfg.fee_tier).call()
-        pool = c(cfg.pool_address, POOL_ABI)
+        pool = c(pool_addr, POOL_ABI)
         facts["pool_token0"] = pool.functions.token0().call()
         facts["pool_token1"] = pool.functions.token1().call()
         facts["pool_fee"] = pool.functions.fee().call()
-    if cfg.withdrawal_address:
+    if wd_addr:
         facts["withdrawal_code_size"] = len(
-            w3.eth.get_code(Web3.to_checksum_address(cfg.withdrawal_address)))
+            w3.eth.get_code(Web3.to_checksum_address(wd_addr)))
     return facts
 
 

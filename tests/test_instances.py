@@ -249,5 +249,21 @@ class TestDisabledInstance(unittest.TestCase):
             self.assertFalse((Path(d) / "a.jsonl").exists())
 
 
+class TestVerifyOnRealConfig(unittest.TestCase):
+    """Регрессия 04.10: на незаполненном пуле verify падал на cfg.pool_address."""
+
+    def test_todo_on_unfilled_robinhood_config(self):
+        rh = config_mod.load_config(str(ROOT / "config.robinhood.yaml"))
+        items = verify.todo(rh)
+        self.assertTrue(any("pool" in x for x in items))
+        self.assertTrue(any("withdrawal" in x for x in items))
+
+    def test_check_on_unfilled_robinhood_config(self):
+        rh = config_mod.load_config(str(ROOT / "config.robinhood.yaml"))
+        facts = _facts(pool_from_factory=None, pool_token0=None, pool_token1=None,
+                       pool_fee=None)
+        self.assertEqual(verify.check(facts, rh), [])
+
+
 if __name__ == "__main__":
     unittest.main()

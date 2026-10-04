@@ -28,6 +28,17 @@ def _opt(cfg, name: str) -> str:
         return ""
 
 
+def payout_asset_line(cfg) -> str:
+    """В чём уйдут комиссии: обёртка нативной монеты разворачивается (_send_payout)."""
+    if not cfg.payout_token_address:
+        return "Вывод комиссий: payout-токен не задан"
+    if _eq(cfg.payout_token_address, cfg.wrapped_native):
+        return (f"Вывод комиссий: нативная монета (WBNB разворачивается) "
+                f"на `{_opt(cfg, 'withdrawal_address')}`")
+    return (f"Вывод комиссий: ⚠️ токеном ERC-20 `{cfg.payout_token_address}`, "
+            f"не нативной монетой")
+
+
 def todo(cfg) -> list:
     """Что ещё не заполнено. Для выключенного инстанса — не ошибка."""
     pool_addr, wd_addr = _opt(cfg, "pool_address"), _opt(cfg, "withdrawal_address")
@@ -138,6 +149,7 @@ def main() -> int:
     elif not problems:
         print("\n✅ Контракты сходятся с цепью; осталось дозаполнить конфиг.")
 
+    print(f"\n{payout_asset_line(cfg)}")
     _print_wallet(cfg)
 
     if problems or (cfg.enabled and missing):

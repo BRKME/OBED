@@ -275,5 +275,25 @@ class TestVerifyOnRealConfig(unittest.TestCase):
         self.assertEqual(verify.check(self._facts_for(b2), b2), [])
 
 
+class TestPayoutIsNativeBNB(unittest.TestCase):
+    """Оператору нужен BNB, а не WBNB: оба BSC-инстанса должны разворачивать."""
+
+    def _send(self, cfg_file):
+        cfg = config_mod.load_config(str(ROOT / cfg_file))
+        c = PayoutClient()
+        _, asset = pm._send_payout(c, cfg, cfg.payout_token_address, 10 ** 16)
+        return asset, [s.kind for s in c.sent]
+
+    def test_bsc_sends_native(self):
+        self.assertEqual(self._send("config.yaml"), ("native", ["unwrap", "native"]))
+
+    def test_bsc2_sends_native(self):
+        self.assertEqual(self._send("config.bsc2.yaml"), ("native", ["unwrap", "native"]))
+
+    def test_verify_states_payout_asset(self):
+        b2 = config_mod.load_config(str(ROOT / "config.bsc2.yaml"))
+        self.assertIn("нативн", verify.payout_asset_line(b2))
+
+
 if __name__ == "__main__":
     unittest.main()

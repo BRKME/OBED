@@ -1,6 +1,12 @@
 # Конфигурация бота OBED.
 # Никаких приватных ключей здесь — только в GitHub Actions secret BOT_PRIVATE_KEY.
 
+name: bsc
+
+# stats.unit_label — подпись token1 в отчёте LP против HODL
+stats:
+  unit_label: "WBNB"
+
 network:
   chain_id: 56
   rpc_url: "https://bsc-dataseed.binance.org/"

@@ -10,6 +10,9 @@ from .logger import logger, log_action
 
 def run() -> int:
     cfg = load_config()
+    if not cfg.enabled:
+        logger.info("Инстанс %s выключен (enabled: false) — сеть не трогаем", cfg.name)
+        return 0
     state = load_state(cfg.state_file)
 
     elapsed = seconds_since_last_check(state)
@@ -28,18 +31,18 @@ def run() -> int:
     client = ChainClient(cfg)
 
     # Preflight по газу ДО любых транзакций. Кейс 02.07: reopen-цепочка из 7
-    # транзакций высушила BNB и упала на ПОСЛЕДНЕМ шаге (mint), не хватило
+    # транзакций высушила газ и упала на ПОСЛЕДНЕМ шаге (mint), не хватило
     # $0.002 — позиция уже была закрыта, средства повисли вне пула. Порог —
     # с запасом на полный цикл close->swap->mint (~8 tx). При нехватке — выйти
     # громко (красный ран), НЕ трогая позицию и не сжигая остаток на approve.
-    MIN_GAS_WEI = int(0.0003 * 1e18)   # ~10x стоимость mint на BSC
+    MIN_GAS_WEI = int(cfg.min_gas_native * 1e18)   # BSC: 0.0003 ≈ 10x стоимость mint
     native = client.w3.eth.get_balance(client.account.address)
     if native < MIN_GAS_WEI:
         logger.error(
-            "Мало газа: %.6f BNB на %s (нужно >= %.4f BNB). Пополни кошелёк — "
+            "Мало газа: %.6f нативной монеты на %s (нужно >= %.4f). Пополни кошелёк — "
             "тик пропущен ДО транзакций, позиция не тронута.",
             native / 1e18, client.account.address, MIN_GAS_WEI / 1e18)
-        log_action(cfg.log_file, "low_gas", error=f"balance={native/1e18:.6f} BNB")
+        log_action(cfg.log_file, "low_gas", error=f"balance={native/1e18:.6f}")
         mark_checked_now(state)
         save_state(cfg.state_file, state)
         return 1

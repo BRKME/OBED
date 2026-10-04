@@ -39,21 +39,23 @@ class ChainClient:
         return self.w3.eth.contract(address=Web3.to_checksum_address(address), abi=ERC20_ABI)
 
     def wnative(self, address: str):
-        """Контракт обёртки нативной монеты (WBNB) — для withdraw()."""
+        """Контракт обёртки нативной монеты (WBNB/WETH) — для withdraw()."""
         return self.w3.eth.contract(address=Web3.to_checksum_address(address), abi=WNATIVE_ABI)
 
     def send_native(self, to: str, amount_wei: int) -> dict:
-        """Перевод нативной монеты (BNB). Газ платится из баланса бота."""
+        """Перевод нативной монеты. Газ платится из баланса бота."""
         addr = self.account.address
         tx = {
             "from": addr,
             "to": Web3.to_checksum_address(to),
             "value": int(amount_wei),
             "nonce": self.w3.eth.get_transaction_count(addr, "pending"),
-            "gas": 21000,
             "chainId": self.cfg.chain_id,
             "gasPrice": self.w3.eth.gas_price,
         }
+        # Не 21000 жёстко: на Arbitrum Orbit (Robinhood Chain) в лимит газа входит
+        # стоимость публикации данных в L1, и 21000 не хватает даже на простой перевод.
+        tx["gas"] = int(self.w3.eth.estimate_gas(tx) * 1.2)
         signed = self.account.sign_transaction(tx)
         tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
         logger.info("Нативный перевод отправлен: %s", tx_hash.hex())

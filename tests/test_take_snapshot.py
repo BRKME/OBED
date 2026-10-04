@@ -43,7 +43,7 @@ POOL = {"token0": "T0", "token1": "T1", "decimals0": 18, "decimals1": 18,
 class TestTakeSnapshot(unittest.TestCase):
     def _run(self, client, position):
         with tempfile.TemporaryDirectory() as d:
-            cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl")
+            cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl", wrapped_native="")
             pm.take_snapshot(client, cfg, POOL, position)
             return json.loads(cfg.log_file.read_text().strip())
 
@@ -76,7 +76,7 @@ class TestDetectCapitalFlow(unittest.TestCase):
 
     def _run(self, state):
         with tempfile.TemporaryDirectory() as d:
-            cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl")
+            cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl", wrapped_native="")
             pm.detect_capital_flow(FakeClient(liquidity=1), cfg, POOL, state)
             text = cfg.log_file.read_text().strip() if cfg.log_file.exists() else ""
             return [json.loads(l) for l in text.splitlines()]
@@ -110,7 +110,7 @@ class TestDetectCapitalFlow(unittest.TestCase):
 
     def test_snapshot_returns_raw_free_balance(self):
         with tempfile.TemporaryDirectory() as d:
-            cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl")
+            cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl", wrapped_native="")
             free = pm.take_snapshot(FakeClient(liquidity=1), cfg, POOL, {"token_id": 1})
         self.assertEqual(free, (5 * 10 ** 17, 2 * 10 ** 18))
 

@@ -3,7 +3,13 @@ name: OBED bot tick
 on:
   schedule:
     - cron: "5 */4 * * *"   # каждые 4 часа в :05
-  workflow_dispatch: {}    # ручной запуск для первого открытия позиции
+  workflow_dispatch:         # ручной запуск: первое открытие позиции, проверка
+    inputs:
+      instance:
+        description: "Какой инстанс запустить"
+        type: choice
+        options: [all, bsc, robinhood]
+        default: all
 
 permissions:
   contents: write
@@ -13,7 +19,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Инстансы — отдельные джобы: свой кошелёк, свой секрет, свой state. Падение
+  # одного не останавливает другой, но каждый красный ран виден отдельно.
   run:
+    name: bsc
+    if: github.event_name == 'schedule' || inputs.instance != 'robinhood'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,5 +51,56 @@ jobs:
           git config user.name "obed-bot"
           git config user.email "obed-bot@users.noreply.github.com"
           git add state/state.json state/actions.jsonl
-          git diff --quiet --cached || git commit -m "obed: state update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          git push
+          git diff --quiet --cached && exit 0
+          git commit -m "obed: state update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # второй инстанс пушит параллельно; файлы разные, rebase чистый
+          for i in 1 2 3 4; do
+            git pull --rebase -q origin main && git push && exit 0
+            sleep $((i * 5))
+          done
+          exit 1
+
+  robinhood:
+    name: robinhood
+    if: github.event_name == 'schedule' || inputs.instance != 'bsc'
+    runs-on: ubuntu-latest
+    env:
+      OBED_CONFIG: config.robinhood.yaml
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Сверка адресов с цепью перед каждым тиком. Только чтение, без ключа.
+      # Расхождение — красный ран, тик не запускается.
+      - name: Verify config against chain
+        run: python -m src.verify | tee -a "$GITHUB_STEP_SUMMARY"; exit ${PIPESTATUS[0]}
+
+      - name: Run bot tick
+        env:
+          BOT_PRIVATE_KEY_ROBINHOOD: ${{ secrets.BOT_PRIVATE_KEY_ROBINHOOD }}
+        run: python -m src.main
+
+      - name: LP vs HODL report
+        if: always()
+        continue-on-error: true
+        run: python -m src.lp_stats | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit state and logs
+        if: always()
+        run: |
+          git config user.name "obed-bot"
+          git config user.email "obed-bot@users.noreply.github.com"
+          git add state/robinhood/
+          git diff --quiet --cached && exit 0
+          git commit -m "obed[robinhood]: state update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for i in 1 2 3 4; do
+            git pull --rebase -q origin main && git push && exit 0
+            sleep $((i * 5))
+          done
+          exit 1

@@ -11,6 +11,15 @@ class Config:
     raw: dict
 
     @property
+    def name(self) -> str:
+        return self.raw.get("name", "bsc")
+
+    @property
+    def enabled(self) -> bool:
+        """Выключенный инстанс не трогает сеть и не требует ключа."""
+        return bool(self.raw.get("enabled", True))
+
+    @property
     def chain_id(self) -> int:
         return self.raw["network"]["chain_id"]
 
@@ -33,8 +42,20 @@ class Config:
         return self.raw["contracts"]["swap_router02"]
 
     @property
-    def wbnb(self) -> str:
-        return self.raw["contracts"]["wbnb"]
+    def wrapped_native(self) -> str:
+        """Обёртка нативной монеты (WBNB / WETH). Старый ключ wbnb — для BSC-конфига."""
+        c = self.raw["contracts"]
+        return c.get("wrapped_native") or c.get("wbnb") or ""
+
+    @property
+    def min_gas_native(self) -> float:
+        """Минимум нативной монеты на газ полного цикла close->swap->mint."""
+        return float(self.raw["position"].get("min_gas_native", 0.0003))
+
+    @property
+    def unit_label(self) -> str:
+        """Как подписывать token1 в отчёте LP против HODL."""
+        return self.raw.get("stats", {}).get("unit_label", "token1")
 
     @property
     def pool_address(self) -> str:
@@ -91,17 +112,24 @@ class Config:
         return ROOT / self.raw["paths"]["log_file"]
 
     @property
+    def private_key_env(self) -> str:
+        """Имя переменной окружения (секрета Actions) с ключом этого инстанса."""
+        return self.raw.get("secrets", {}).get("private_key_env", "BOT_PRIVATE_KEY")
+
+    @property
     def private_key(self) -> str:
-        key = os.environ.get("BOT_PRIVATE_KEY")
+        key = os.environ.get(self.private_key_env)
         if not key:
-            raise ValueError("BOT_PRIVATE_KEY не задан в переменных окружения")
+            raise ValueError(f"{self.private_key_env} не задан в переменных окружения")
         if not key.startswith("0x"):
             key = "0x" + key
         return key
 
 
 def load_config(path: str = None) -> Config:
-    path = path or str(ROOT / "config.yaml")
+    """Конфиг инстанса: явный путь, иначе OBED_CONFIG, иначе config.yaml (BSC)."""
+    path = path or os.environ.get("OBED_CONFIG") or "config.yaml"
+    path = str(ROOT / path)   # абсолютный путь ROOT не меняет
     with open(path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     return Config(raw=raw)

@@ -236,30 +236,61 @@ def check_and_collect_fees(client, cfg, token_id: int, pool_state: dict) -> None
 
     payout_balance = client.erc20(payout_token).functions.balanceOf(client.account.address).call()
     if payout_balance > 0:
-        # 22.08.2026: разворачиваем WBNB в нативный BNB перед отправкой.
-        # Раньше уходил ERC-20 токен: на свежем кошельке с нулевым газовым
-        # балансом получатель не мог его ни развернуть, ни перевести, а на
-        # биржевой депозит WBNB вообще не зачисляется. Нативная монета
-        # универсальна и сразу тратится на газ.
-        native_before = client.w3.eth.get_balance(client.account.address)
-        client.send_tx(client.wnative(payout_token).functions.withdraw(payout_balance))
-        native_after = client.w3.eth.get_balance(client.account.address)
-        # отправляем ровно развёрнутую сумму, газовый резерв бота не трогаем
-        unwrapped = max(0, native_after - native_before)
-        amount_to_send = min(payout_balance, unwrapped) if unwrapped else payout_balance
-        transfer_receipt = client.send_native(cfg.withdrawal_address, amount_to_send)
-        logger.info("Комиссии отправлены (нативный BNB) на %s: %s (tx=%s)",
-                    cfg.withdrawal_address, amount_to_send,
-                    transfer_receipt.transactionHash.hex())
+        transfer_receipt, asset = _send_payout(client, cfg, payout_token, payout_balance)
+        payout_dec = pool_state["decimals0"] if is_payout0 else pool_state["decimals1"]
+        payout_human = payout_balance / 10 ** payout_dec
+        payout_value_t1 = payout_human * pool_state["price_t1_per_t0"] if is_payout0 else payout_human
         log_action(cfg.log_file, "withdraw_fees", price=pool_state["price_t1_per_t0"],
                    tx_hash=transfer_receipt.transactionHash.hex(), fees_usd=fees_value,
-                   token_id=token_id, amount_payout=amount_to_send, asset="native")
+                   token_id=token_id, amount_payout=payout_balance, asset=asset,
+                   payout_value_t1=payout_value_t1)
+
+
+def _send_payout(client, cfg, payout_token: str, amount: int) -> tuple:
+    """
+    Отправляет комиссии на withdrawal_address. Возвращает (receipt, asset).
+
+    Обёртку нативной монеты (WBNB/WETH) разворачиваем и шлём нативной монетой.
+    22.08.2026: раньше уходил ERC-20 WBNB — на свежем кошельке без газа получатель
+    не мог его ни развернуть, ни перевести, а на биржевой депозит WBNB не зачисляется.
+    Любой другой payout-токен (USDC и т.п.) развернуть нельзя — шлём как ERC-20.
+    """
+    if Web3.to_checksum_address(payout_token) != Web3.to_checksum_address(cfg.wrapped_native):
+        receipt = client.send_tx(client.erc20(payout_token).functions.transfer(
+            Web3.to_checksum_address(cfg.withdrawal_address), amount))
+        logger.info("Комиссии отправлены (ERC-20 %s) на %s: %s",
+                    payout_token, cfg.withdrawal_address, amount)
+        return receipt, "erc20"
+
+    native_before = client.w3.eth.get_balance(client.account.address)
+    client.send_tx(client.wnative(payout_token).functions.withdraw(amount))
+    native_after = client.w3.eth.get_balance(client.account.address)
+    # отправляем ровно развёрнутую сумму, газовый резерв бота не трогаем
+    unwrapped = max(0, native_after - native_before)
+    amount_to_send = min(amount, unwrapped) if unwrapped else amount
+    receipt = client.send_native(cfg.withdrawal_address, amount_to_send)
+    logger.info("Комиссии отправлены (нативная монета) на %s: %s",
+                cfg.withdrawal_address, amount_to_send)
+    return receipt, "native"
+
+
+def native_value_t1(native: float, wrapped_native: str, token0: str, token1: str,
+                    price_t1_per_t0: float):
+    """Нативная монета в единицах token1; None, если её нет в паре (цену не знаем)."""
+    if not wrapped_native:
+        return None
+    w = Web3.to_checksum_address(wrapped_native)
+    if w == Web3.to_checksum_address(token1):
+        return native
+    if w == Web3.to_checksum_address(token0):
+        return native * price_t1_per_t0
+    return None
 
 
 def take_snapshot(client, cfg, pool_state: dict, position) -> None:
     """
     Пишет в журнал снимок всего, что есть у бота: свободные токены на кошельке,
-    токены внутри позиции, невыведенные комиссии, нативный BNB. Только чтение
+    токены внутри позиции, невыведенные комиссии, нативную монету. Только чтение
     (eth_call), газа не тратит. Из этих снимков src/lp_stats.py считает LP против HODL.
 
     Токены внутри позиции — статический вызов decreaseLiquidity на всю ликвидность:
@@ -288,7 +319,10 @@ def take_snapshot(client, cfg, pool_state: dict, position) -> None:
                free0=free0 / 10 ** dec0, free1=free1 / 10 ** dec1,
                pos0=pos0 / 10 ** dec0, pos1=pos1 / 10 ** dec1,
                fee0=fee0 / 10 ** dec0, fee1=fee1 / 10 ** dec1,
-               native=native / 1e18)
+               native=native / 1e18,
+               native_t1=native_value_t1(native / 1e18, cfg.wrapped_native,
+                                         pool_state["token0"], pool_state["token1"],
+                                         pool_state["price_t1_per_t0"]))
     return free0, free1
 
 
@@ -306,7 +340,7 @@ def detect_capital_flow(client, cfg, pool_state: dict, state: dict) -> None:
     запишет flow_check_skipped — разрыв, который виден в отчёте.
 
     Не видит: вывод ликвидности из позиции напрямую через NFT (в обход бота)
-    и переводы нативного BNB (это газ, на капитал не влияет).
+    и переводы нативной монеты (это газ, на капитал не влияет).
     """
     last = state.get("last_free")
     state["last_free"] = None

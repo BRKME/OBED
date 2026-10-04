@@ -90,6 +90,10 @@ POSITION_MANAGER_ABI = [
          {"name": "amount1Max", "type": "uint128"},
      ]}],
      "outputs": [{"name": "amount0", "type": "uint256"}, {"name": "amount1", "type": "uint256"}]},
+    {"name": "factory", "type": "function", "stateMutability": "view",
+     "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+    {"name": "WETH9", "type": "function", "stateMutability": "view",
+     "inputs": [], "outputs": [{"name": "", "type": "address"}]},
     {"name": "burn", "type": "function", "stateMutability": "payable",
      "inputs": [{"name": "tokenId", "type": "uint256"}], "outputs": []},
     {"name": "positions", "type": "function", "stateMutability": "view",
@@ -122,6 +126,10 @@ SWAP_ROUTER02_ABI = [
          {"name": "sqrtPriceLimitX96", "type": "uint160"},
      ]}],
      "outputs": [{"name": "amountOut", "type": "uint256"}]},
+    {"name": "factory", "type": "function", "stateMutability": "view",
+     "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+    {"name": "WETH9", "type": "function", "stateMutability": "view",
+     "inputs": [], "outputs": [{"name": "", "type": "address"}]},
 ]
 
 

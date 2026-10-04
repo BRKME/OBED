@@ -64,6 +64,18 @@ def run() -> int:
 
     try:
         if position is None:
+            # Позиция могла быть открыта вручную или потеряна из state — подхватываем
+            # её, а не открываем вторую из остатков кошелька.
+            owned = pm.find_owned_position(client, cfg)
+            if owned is not None:
+                position = pm.hydrate_position(client, owned)
+                state["position"] = position
+                save_state(cfg.state_file, state)
+                log_action(cfg.log_file, "adopt_position", price=pool_state["price_t1_per_t0"],
+                           token_id=owned, tick_lower=position["tick_lower"],
+                           tick_upper=position["tick_upper"])
+
+        if position is None:
             logger.info("Активной позиции нет — открываем первую позицию")
             new_pos = pm.open_position(client, cfg, pool_state)
             state["position"] = new_pos

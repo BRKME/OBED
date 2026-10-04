@@ -115,6 +115,36 @@ def hydrate_position(client, token_id: int) -> dict:
     return {"token_id": token_id, "tick_lower": tick_lower, "tick_upper": tick_upper}
 
 
+def find_owned_position(client, cfg):
+    """
+    Ищет на кошельке бота живую NFT-позицию в пуле из конфига (те же token0/token1
+    и fee, liquidity > 0). Возвращает token_id или None.
+
+    Зачем: позицию может открыть оператор руками (первый запуск bsc2), а state.json
+    может потеряться. Без этой проверки бот при пустом state открыл бы ВТОРУЮ
+    позицию из остатков кошелька. Две живые позиции в нашем пуле — ошибка: какую
+    вести, решает оператор, а не бот.
+    """
+    npm = client.position_manager.functions
+    owner = client.account.address
+    want0 = Web3.to_checksum_address(cfg.pool_token0)
+    want1 = Web3.to_checksum_address(cfg.pool_token1)
+
+    found = []
+    for i in range(npm.balanceOf(owner).call()):
+        token_id = npm.tokenOfOwnerByIndex(owner, i).call()
+        pos = npm.positions(token_id).call()
+        if (Web3.to_checksum_address(pos[2]) == want0 and Web3.to_checksum_address(pos[3]) == want1
+                and pos[4] == cfg.fee_tier and pos[7] > 0):
+            found.append(token_id)
+
+    if len(found) > 1:
+        raise RuntimeError(
+            f"На кошельке {len(found)} живые позиции в нашем пуле ({found}) — "
+            f"какую вести, решает оператор: впиши token_id в state.json")
+    return found[0] if found else None
+
+
 def open_position(client, cfg, pool_state: dict) -> dict:
     rebalance_to_50_50(client, pool_state, cfg.slippage_bps)
 

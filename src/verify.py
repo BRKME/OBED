@@ -178,6 +178,22 @@ def _print_wallet(cfg) -> None:
     if native < cfg.min_gas_native:
         print(f"- ⚠️ газа меньше {cfg.min_gas_native} — бот не начнёт работу")
 
+    # NFT-позиции на кошельке — чтобы взять пул из позиции, открытой вручную
+    from .abis import FACTORY_ABI, POSITION_MANAGER_ABI
+    npm = w3.eth.contract(address=Web3.to_checksum_address(cfg.position_manager),
+                          abi=POSITION_MANAGER_ABI)
+    factory = w3.eth.contract(address=Web3.to_checksum_address(cfg.factory), abi=FACTORY_ABI)
+    n = npm.functions.balanceOf(address).call()
+    print(f"\n**Позиции Uniswap V3 на кошельке:** {n}")
+    for i in range(n):
+        tid = npm.functions.tokenOfOwnerByIndex(address, i).call()
+        pos = npm.functions.positions(tid).call()
+        t0, t1, fee, liq = pos[2], pos[3], pos[4], pos[7]
+        pool = factory.functions.getPool(t0, t1, fee).call()
+        state = "живая" if liq > 0 else "пустая"
+        print(f"- token_id `{tid}` ({state}): pool `{pool}`, token0 `{t0}`, "
+              f"token1 `{t1}`, fee {fee}, ticks [{pos[5]}, {pos[6]}]")
+
 
 if __name__ == "__main__":
     sys.exit(main())

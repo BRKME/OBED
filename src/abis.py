@@ -94,6 +94,13 @@ POSITION_MANAGER_ABI = [
      "inputs": [], "outputs": [{"name": "", "type": "address"}]},
     {"name": "WETH9", "type": "function", "stateMutability": "view",
      "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+    # ERC721Enumerable — найти позиции кошелька (подхват открытой вручную)
+    {"name": "balanceOf", "type": "function", "stateMutability": "view",
+     "inputs": [{"name": "owner", "type": "address"}],
+     "outputs": [{"name": "", "type": "uint256"}]},
+    {"name": "tokenOfOwnerByIndex", "type": "function", "stateMutability": "view",
+     "inputs": [{"name": "owner", "type": "address"}, {"name": "index", "type": "uint256"}],
+     "outputs": [{"name": "", "type": "uint256"}]},
     {"name": "burn", "type": "function", "stateMutability": "payable",
      "inputs": [{"name": "tokenId", "type": "uint256"}], "outputs": []},
     {"name": "positions", "type": "function", "stateMutability": "view",

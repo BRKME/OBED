@@ -289,3 +289,38 @@ def take_snapshot(client, cfg, pool_state: dict, position) -> None:
                pos0=pos0 / 10 ** dec0, pos1=pos1 / 10 ** dec1,
                fee0=fee0 / 10 ** dec0, fee1=fee1 / 10 ** dec1,
                native=native / 1e18)
+    return free0, free1
+
+
+def detect_capital_flow(client, cfg, pool_state: dict, state: dict) -> None:
+    """
+    Находит пополнения и выводы оператора без сканирования блокчейна.
+
+    Между тиками бот ничего не делает, поэтому свободный баланс кошелька по
+    token0/token1 может измениться только от чужих переводов. Сравниваем его
+    в начале тика с тем, что записал снимок в конце прошлого тика
+    (state["last_free"], сырые единицы). Разница — capital_flow.
+
+    Базу сразу обнуляем: её заново выставит снимок в конце тика. Если тик
+    упадёт без снимка, следующий тик не будет сверяться со старой базой, а
+    запишет flow_check_skipped — разрыв, который виден в отчёте.
+
+    Не видит: вывод ликвидности из позиции напрямую через NFT (в обход бота)
+    и переводы нативного BNB (это газ, на капитал не влияет).
+    """
+    last = state.get("last_free")
+    state["last_free"] = None
+    if last is None:
+        log_action(cfg.log_file, "flow_check_skipped", price=pool_state["price_t1_per_t0"])
+        return
+
+    free0, free1 = _wallet_balances(client, pool_state)
+    raw0, raw1 = free0 - last[0], free1 - last[1]
+    if raw0 == 0 and raw1 == 0:
+        return
+
+    d0 = raw0 / 10 ** pool_state["decimals0"]
+    d1 = raw1 / 10 ** pool_state["decimals1"]
+    logger.info("Обнаружен перевод капитала оператором: token0 %+.8f, token1 %+.8f", d0, d1)
+    log_action(cfg.log_file, "capital_flow", price=pool_state["price_t1_per_t0"],
+               d0=d0, d1=d1)

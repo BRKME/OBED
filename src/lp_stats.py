@@ -6,13 +6,15 @@
 
   LP   = всё, что сейчас есть у бота (позиция + невыведенные комиссии + свободный
          баланс токенов) + выведенные на обед комиссии − потраченный газ
-  HODL = токены первого снимка, оценённые по текущей цене
+  HODL = токены первого снимка + пополнения − выводы оператора (capital_flow),
+         оценённые по текущей цене
 
 Разница LP − HODL — это комиссии минус IL минус издержки переоткрытий (свопы
 через пул, проскальзывание) минус газ. Ответ на вопрос «стоит ли масштабировать».
 
-Если оператор доливает или забирает капитал, база ломается — запусти с
-`--since <unix ts>` после последнего пополнения.
+Пополнения и выводы оператора бот находит сам (position_manager.detect_capital_flow)
+и пишет как capital_flow: они входят и в LP, и в HODL, поэтому результат не искажают.
+`--since <unix ts>` — чтобы посчитать с произвольного момента.
 
     python -m src.lp_stats [--since TS]
 """
@@ -47,6 +49,12 @@ def compute_report(records: list, since_ts: Optional[float] = None) -> Optional[
     withdrawn = sum(r.get("amount_payout") or 0 for r in in_window
                     if r.get("action") == "withdraw_fees") / 10 ** PAYOUT_DECIMALS
     reopens = sum(1 for r in in_window if r.get("action") == "close_position")
+    flows = [r for r in in_window if r.get("action") == "capital_flow"]
+    hodl0 = h0 + sum(r["d0"] for r in flows)
+    hodl1 = h1 + sum(r["d1"] for r in flows)
+    net_flow = sum(r["d0"] * r["price"] + r["d1"] for r in flows)
+    flow_gaps = sum(1 for r in records
+                    if r.get("action") == "flow_check_skipped" and r["ts"] >= t0)
     # ошибки снимков считаем и после последнего снимка — там они важнее всего
     snapshot_errors = sum(1 for r in records
                           if r.get("action") == "snapshot_error" and r["ts"] >= t0)
@@ -58,7 +66,7 @@ def compute_report(records: list, since_ts: Optional[float] = None) -> Optional[
     start_value = h0 * first["price"] + h1
     equity = n0 * last["price"] + n1
     lp_value = equity + withdrawn - gas
-    hodl_value = h0 * last["price"] + h1
+    hodl_value = hodl0 * last["price"] + hodl1
     diff = lp_value - hodl_value
 
     return {
@@ -78,6 +86,9 @@ def compute_report(records: list, since_ts: Optional[float] = None) -> Optional[
         "diff_pct": diff / hodl_value * 100 if hodl_value else 0.0,
         "reopens": reopens,
         "snapshot_errors": snapshot_errors,
+        "flows": len(flows),
+        "net_flow": net_flow,
+        "flow_gaps": flow_gaps,
     }
 
 
@@ -97,6 +108,7 @@ def render_report(rep: Optional[dict], now_ts: Optional[float] = None) -> str:
         "| | WBNB |",
         "|---|---|",
         f"| на старте | {rep['start_value']:.4f} |",
+        f"| пополнения − выводы ({rep['flows']}) | {rep['net_flow']:+.4f} |",
         f"| у бота сейчас | {rep['equity']:.4f} |",
         f"| выведено на обед | +{rep['withdrawn']:.4f} |",
         f"| газ | −{rep['gas']:.4f} |",
@@ -114,6 +126,10 @@ def render_report(rep: Optional[dict], now_ts: Optional[float] = None) -> str:
     if rep.get("snapshot_errors"):
         lines += ["", f"⚠️ {rep['snapshot_errors']} раз снимок не записался — "
                       f"см. `snapshot_error` в actions.jsonl."]
+    if rep.get("flow_gaps"):
+        lines += ["", f"⚠️ {rep['flow_gaps']} разрыв(а) в сверке пополнений (тик упал без "
+                      f"снимка) — перевод в такой промежуток не виден, результат может "
+                      f"быть искажён."]
     if rep["days"] < MIN_DAYS_TO_JUDGE:
         lines += ["", f"_Меньше {MIN_DAYS_TO_JUDGE} дней — рано судить: "
                       f"одно переоткрытие может перевернуть знак._"]

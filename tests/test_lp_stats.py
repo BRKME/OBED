@@ -122,5 +122,66 @@ class TestStaleWarning(unittest.TestCase):
         self.assertIn("снимок не записался", lp_stats.render_report(rep))
 
 
+def flow(ts, price, d0=0.0, d1=0.0):
+    return {"ts": ts, "action": "capital_flow", "price": price, "d0": d0, "d1": d1}
+
+
+class TestCapitalFlows(unittest.TestCase):
+    def test_deposit_is_not_profit(self):
+        # оператор докинул 1 WBNB, бот вложил его в позицию — разница с HODL ноль
+        rep = lp_stats.compute_report([
+            snap(0, 1.0, pos0=1, pos1=1),
+            flow(DAY / 2, 1.0, d1=1.0),
+            snap(DAY, 1.0, pos0=1.5, pos1=1.5),
+        ])
+        self.assertAlmostEqual(rep["diff"], 0.0)
+        self.assertAlmostEqual(rep["net_flow"], 1.0)
+        self.assertEqual(rep["flows"], 1)
+
+    def test_withdrawal_is_not_loss(self):
+        rep = lp_stats.compute_report([
+            snap(0, 1.0, pos0=2, pos1=2),
+            flow(DAY / 2, 1.0, d0=-1.0),
+            snap(DAY, 1.0, pos0=1, pos1=2),
+        ])
+        self.assertAlmostEqual(rep["diff"], 0.0)
+        self.assertAlmostEqual(rep["net_flow"], -1.0)
+
+    def test_deposited_tokens_follow_price_in_hodl(self):
+        # докинули 1 ZEC при цене 1, цена стала 2: HODL держал бы 2 ZEC + 1 WBNB
+        rep = lp_stats.compute_report([
+            snap(0, 1.0, pos0=1, pos1=1),
+            flow(DAY / 2, 1.0, d0=1.0),
+            snap(DAY, 2.0, pos0=2, pos1=1),
+        ])
+        self.assertAlmostEqual(rep["hodl_value"], 5.0)
+        self.assertAlmostEqual(rep["diff"], 0.0)
+
+    def test_flows_before_baseline_ignored(self):
+        rep = lp_stats.compute_report([
+            flow(0, 1.0, d1=5.0),
+            snap(DAY, 1.0, pos0=1, pos1=1),
+            snap(2 * DAY, 1.0, pos0=1, pos1=1),
+        ])
+        self.assertEqual(rep["flows"], 0)
+
+    def test_render_shows_flows(self):
+        rep = lp_stats.compute_report([
+            snap(0, 1.0, pos0=1, pos1=1),
+            flow(DAY / 2, 1.0, d1=1.0),
+            snap(DAY, 1.0, pos0=1.5, pos1=1.5),
+        ])
+        self.assertIn("пополнения", lp_stats.render_report(rep))
+
+    def test_gaps_in_flow_check_are_reported(self):
+        rep = lp_stats.compute_report([
+            snap(0, 1.0, pos0=1, pos1=1),
+            {"ts": 10, "action": "flow_check_skipped"},
+            snap(DAY, 1.0, pos0=1, pos1=1),
+        ])
+        self.assertEqual(rep["flow_gaps"], 1)
+        self.assertIn("разрыв", lp_stats.render_report(rep))
+
+
 if __name__ == "__main__":
     unittest.main()

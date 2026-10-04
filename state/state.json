@@ -5,5 +5,9 @@
     "tick_upper": 6200
   },
   "last_check_ts": 1791100435.2777817,
-  "schema_version": 1
+  "schema_version": 1,
+  "last_free": [
+    0,
+    0
+  ]
 }

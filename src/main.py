@@ -48,6 +48,15 @@ def run() -> int:
     logger.info("Текущая цена пула: %.8f (token1/token0), tick=%s",
                 pool_state["price_t1_per_t0"], pool_state["tick"])
 
+    # Сверка пополнений/выводов оператора — до любых действий бота, пока
+    # свободный баланс кошелька ещё не тронут.
+    try:
+        pm.detect_capital_flow(client, cfg, pool_state, state)
+    except Exception as e:  # noqa: BLE001
+        state["last_free"] = None
+        logger.warning("Сверка пополнений не выполнена: %s", e)
+        log_action(cfg.log_file, "flow_check_skipped", error=str(e))
+
     position = state.get("position")
 
     try:
@@ -96,7 +105,9 @@ def run() -> int:
     # Снимок для статистики LP против HODL (src/lp_stats.py). Только чтение;
     # сбой снимка не должен ронять тик — позиция важнее статистики.
     try:
-        pm.take_snapshot(client, cfg, pm.get_pool_state(client), state.get("position"))
+        free0, free1 = pm.take_snapshot(client, cfg, pm.get_pool_state(client),
+                                        state.get("position"))
+        state["last_free"] = [free0, free1]
     except Exception as e:  # noqa: BLE001
         logger.warning("Снимок для статистики не записан: %s", e)
         log_action(cfg.log_file, "snapshot_error", error=str(e))

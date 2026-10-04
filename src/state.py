@@ -7,6 +7,7 @@ from typing import Optional
 DEFAULT_STATE = {
     "position": None,           # {"token_id": int, "tick_lower": int, "tick_upper": int}
     "last_check_ts": None,      # unix timestamp последней проверки
+    "last_free": None,          # [raw0, raw1] свободный баланс на конце тика — база сверки пополнений
     "schema_version": 1,
 }
 

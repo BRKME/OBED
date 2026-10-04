@@ -71,5 +71,49 @@ class TestTakeSnapshot(unittest.TestCase):
         self.assertAlmostEqual(r["fee1"], 0.02)
 
 
+class TestDetectCapitalFlow(unittest.TestCase):
+    """Свободный баланс сейчас: T0 = 0.5, T1 = 2.0 (см. FakeClient)."""
+
+    def _run(self, state):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl")
+            pm.detect_capital_flow(FakeClient(liquidity=1), cfg, POOL, state)
+            text = cfg.log_file.read_text().strip() if cfg.log_file.exists() else ""
+            return [json.loads(l) for l in text.splitlines()]
+
+    def test_deposit_detected(self):
+        state = {"last_free": [5 * 10 ** 17, 10 ** 18]}
+        recs = self._run(state)
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]["action"], "capital_flow")
+        self.assertAlmostEqual(recs[0]["d0"], 0.0)
+        self.assertAlmostEqual(recs[0]["d1"], 1.0)
+        self.assertAlmostEqual(recs[0]["price"], 1.5)
+
+    def test_withdrawal_detected_negative(self):
+        recs = self._run({"last_free": [10 ** 18, 2 * 10 ** 18]})
+        self.assertAlmostEqual(recs[0]["d0"], -0.5)
+
+    def test_no_change_logs_nothing(self):
+        self.assertEqual(self._run({"last_free": [5 * 10 ** 17, 2 * 10 ** 18]}), [])
+
+    def test_unknown_baseline_logs_gap(self):
+        recs = self._run({"last_free": None})
+        self.assertEqual(recs[0]["action"], "flow_check_skipped")
+
+    def test_baseline_cleared_after_check(self):
+        # до конца тика база неизвестна: если тик упадёт без снимка,
+        # следующий тик не должен сверяться со старой базой
+        state = {"last_free": [5 * 10 ** 17, 2 * 10 ** 18]}
+        self._run(state)
+        self.assertIsNone(state["last_free"])
+
+    def test_snapshot_returns_raw_free_balance(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl")
+            free = pm.take_snapshot(FakeClient(liquidity=1), cfg, POOL, {"token_id": 1})
+        self.assertEqual(free, (5 * 10 ** 17, 2 * 10 ** 18))
+
+
 if __name__ == "__main__":
     unittest.main()

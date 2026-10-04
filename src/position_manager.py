@@ -254,3 +254,38 @@ def check_and_collect_fees(client, cfg, token_id: int, pool_state: dict) -> None
         log_action(cfg.log_file, "withdraw_fees", price=pool_state["price_t1_per_t0"],
                    tx_hash=transfer_receipt.transactionHash.hex(), fees_usd=fees_value,
                    token_id=token_id, amount_payout=amount_to_send, asset="native")
+
+
+def take_snapshot(client, cfg, pool_state: dict, position) -> None:
+    """
+    Пишет в журнал снимок всего, что есть у бота: свободные токены на кошельке,
+    токены внутри позиции, невыведенные комиссии, нативный BNB. Только чтение
+    (eth_call), газа не тратит. Из этих снимков src/lp_stats.py считает LP против HODL.
+
+    Токены внутри позиции — статический вызов decreaseLiquidity на всю ликвидность:
+    контракт сам считает, сколько вернул бы, без собственной математики тиков.
+    """
+    dec0, dec1 = pool_state["decimals0"], pool_state["decimals1"]
+    sender = {"from": client.account.address}
+
+    free0, free1 = _wallet_balances(client, pool_state)
+    pos0 = pos1 = fee0 = fee1 = 0
+    token_id = None
+    if position is not None:
+        token_id = position["token_id"]
+        liquidity = client.position_manager.functions.positions(token_id).call()[7]
+        if liquidity > 0:
+            dec_params = (token_id, liquidity, 0, 0, int(time.time()) + DEADLINE_SECONDS)
+            pos0, pos1 = client.position_manager.functions.decreaseLiquidity(
+                dec_params).call(sender)
+        collect_params = (token_id, client.account.address, MAX_UINT128, MAX_UINT128)
+        fee0, fee1 = client.position_manager.functions.collect(collect_params).call(sender)
+
+    native = client.w3.eth.get_balance(client.account.address)
+
+    log_action(cfg.log_file, "snapshot", price=pool_state["price_t1_per_t0"],
+               token_id=token_id,
+               free0=free0 / 10 ** dec0, free1=free1 / 10 ** dec1,
+               pos0=pos0 / 10 ** dec0, pos1=pos1 / 10 ** dec1,
+               fee0=fee0 / 10 ** dec0, fee1=fee1 / 10 ** dec1,
+               native=native / 1e18)

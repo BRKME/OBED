@@ -93,6 +93,14 @@ def run() -> int:
         save_state(cfg.state_file, state)
         return 1
 
+    # Снимок для статистики LP против HODL (src/lp_stats.py). Только чтение;
+    # сбой снимка не должен ронять тик — позиция важнее статистики.
+    try:
+        pm.take_snapshot(client, cfg, pm.get_pool_state(client), state.get("position"))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Снимок для статистики не записан: %s", e)
+        log_action(cfg.log_file, "snapshot_error", error=str(e))
+
     mark_checked_now(state)
     save_state(cfg.state_file, state)
     log_action(cfg.log_file, "tick_complete", price=pool_state["price_t1_per_t0"])

@@ -30,6 +30,11 @@ jobs:
           BOT_PRIVATE_KEY: ${{ secrets.BOT_PRIVATE_KEY }}
         run: python -m src.main
 
+      - name: LP vs HODL report
+        if: always()
+        continue-on-error: true
+        run: python -m src.lp_stats | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Commit state and logs
         if: always()
         run: |

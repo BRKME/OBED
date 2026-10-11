@@ -183,5 +183,25 @@ class TestCapitalFlows(unittest.TestCase):
         self.assertIn("разрыв", lp_stats.render_report(rep))
 
 
+
+class TestNativeFlows(unittest.TestCase):
+    def test_operator_native_withdrawal_is_not_gas(self):
+        rep = lp_stats.compute_report([
+            snap(0, 1.0, pos0=1, pos1=1, native=0.0144),
+            {"ts": DAY / 2, "action": "native_flow", "native": -0.0067, "native_t1": -0.0067},
+            snap(DAY, 1.0, pos0=1, pos1=1, native=0.0077),
+        ])
+        self.assertAlmostEqual(rep["gas"], 0.0)
+
+    def test_bot_gas_still_counted_next_to_topup(self):
+        # оператор докинул 0.05, бот потратил 0.001 в том же промежутке
+        rep = lp_stats.compute_report([
+            snap(0, 1.0, pos0=1, pos1=1, native=0.010),
+            {"ts": DAY / 2, "action": "native_flow", "native": 0.05, "native_t1": 0.05},
+            snap(DAY, 1.0, pos0=1, pos1=1, native=0.059),
+        ])
+        self.assertAlmostEqual(rep["gas"], 0.001)
+
+
 if __name__ == "__main__":
     unittest.main()

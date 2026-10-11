@@ -317,7 +317,7 @@ def native_value_t1(native: float, wrapped_native: str, token0: str, token1: str
     return None
 
 
-def take_snapshot(client, cfg, pool_state: dict, position) -> None:
+def take_snapshot(client, cfg, pool_state: dict, position) -> dict:
     """
     Пишет в журнал снимок всего, что есть у бота: свободные токены на кошельке,
     токены внутри позиции, невыведенные комиссии, нативную монету. Только чтение
@@ -343,6 +343,9 @@ def take_snapshot(client, cfg, pool_state: dict, position) -> None:
         fee0, fee1 = client.position_manager.functions.collect(collect_params).call(sender)
 
     native = client.w3.eth.get_balance(client.account.address)
+    liq_base = None
+    if token_id is not None:
+        liq_base = {"token_id": token_id, "liq": liquidity, "pos": [pos0, pos1]}
 
     log_action(cfg.log_file, "snapshot", price=pool_state["price_t1_per_t0"],
                token_id=token_id,
@@ -353,38 +356,77 @@ def take_snapshot(client, cfg, pool_state: dict, position) -> None:
                native_t1=native_value_t1(native / 1e18, cfg.wrapped_native,
                                          pool_state["token0"], pool_state["token1"],
                                          pool_state["price_t1_per_t0"]))
-    return free0, free1
+    # база для сверки в начале следующего тика (detect_capital_flow), сырые единицы
+    return {"free": [free0, free1], "native": native, "liq": liq_base}
 
 
 def detect_capital_flow(client, cfg, pool_state: dict, state: dict) -> None:
     """
-    Находит пополнения и выводы оператора без сканирования блокчейна.
+    Находит действия оператора между тиками без сканирования блокчейна.
 
-    Между тиками бот ничего не делает, поэтому свободный баланс кошелька по
-    token0/token1 может измениться только от чужих переводов. Сравниваем его
-    в начале тика с тем, что записал снимок в конце прошлого тика
-    (state["last_free"], сырые единицы). Разница — capital_flow.
+    Между тиками бот не отправляет транзакций, поэтому любое изменение с конца
+    прошлого тика (снимок) до начала текущего — чужое:
+      - свободный баланс token0/token1 — перевод на кошелёк или с него
+        (capital_flow, source=wallet);
+      - ликвидность нашей NFT-позиции — оператор добавил или снял ликвидность
+        прямо через Uniswap (capital_flow, source=liquidity). Регрессия 10.10.2026:
+        такой вклад записался в прибыль LP;
+      - нативная монета — пополнение газа или трата с кошелька бота (native_flow);
+        в отчёте это не газ бота.
 
-    Базу сразу обнуляем: её заново выставит снимок в конце тика. Если тик
-    упадёт без снимка, следующий тик не будет сверяться со старой базой, а
-    запишет flow_check_skipped — разрыв, который виден в отчёте.
-
-    Не видит: вывод ликвидности из позиции напрямую через NFT (в обход бота)
-    и переводы нативной монеты (это газ, на капитал не влияет).
+    Базы сразу обнуляем: их заново выставит снимок в конце тика. Если тик упадёт
+    без снимка, следующий тик не сверяется со старой базой, а пишет
+    flow_check_skipped — разрыв, который виден в отчёте.
     """
     last = state.get("last_free")
+    last_native = state.get("last_native")
+    last_liq = state.get("last_liq")
     state["last_free"] = None
+    state["last_native"] = None
+    state["last_liq"] = None
+    price = pool_state["price_t1_per_t0"]
+    dec0, dec1 = pool_state["decimals0"], pool_state["decimals1"]
+
     if last is None:
-        log_action(cfg.log_file, "flow_check_skipped", price=pool_state["price_t1_per_t0"])
+        log_action(cfg.log_file, "flow_check_skipped", price=price)
         return
 
     free0, free1 = _wallet_balances(client, pool_state)
     raw0, raw1 = free0 - last[0], free1 - last[1]
-    if raw0 == 0 and raw1 == 0:
-        return
+    if raw0 or raw1:
+        d0, d1 = raw0 / 10 ** dec0, raw1 / 10 ** dec1
+        logger.info("Перевод капитала оператором: token0 %+.8f, token1 %+.8f", d0, d1)
+        log_action(cfg.log_file, "capital_flow", price=price, d0=d0, d1=d1, source="wallet")
 
-    d0 = raw0 / 10 ** pool_state["decimals0"]
-    d1 = raw1 / 10 ** pool_state["decimals1"]
-    logger.info("Обнаружен перевод капитала оператором: token0 %+.8f, token1 %+.8f", d0, d1)
-    log_action(cfg.log_file, "capital_flow", price=pool_state["price_t1_per_t0"],
-               d0=d0, d1=d1)
+    position = state.get("position")
+    if last_liq and position and position.get("token_id") == last_liq["token_id"]:
+        token_id = last_liq["token_id"]
+        liq = client.position_manager.functions.positions(token_id).call()[7]
+        d_liq = liq - last_liq["liq"]
+        if d_liq:
+            if liq > 0:
+                # токены линейны по ликвидности при данной цене: берём «на единицу L»
+                # у контракта на всю текущую ликвидность и умножаем на ΔL
+                dec_params = (token_id, liq, 0, 0, int(time.time()) + DEADLINE_SECONDS)
+                a0, a1 = client.position_manager.functions.decreaseLiquidity(
+                    dec_params).call({"from": client.account.address})
+                raw0, raw1 = a0 * d_liq / liq, a1 * d_liq / liq
+            else:
+                # сняли всё: цену «на единицу» спросить не у чего — берём суммы
+                # из последнего снимка (по цене того момента)
+                raw0, raw1 = -last_liq["pos"][0], -last_liq["pos"][1]
+            d0, d1 = raw0 / 10 ** dec0, raw1 / 10 ** dec1
+            logger.info("Ликвидность позиции %s изменена в обход бота: ΔL=%s "
+                        "(token0 %+.8f, token1 %+.8f)", token_id, d_liq, d0, d1)
+            log_action(cfg.log_file, "capital_flow", price=price, d0=d0, d1=d1,
+                       source="liquidity", token_id=token_id, d_liq=d_liq)
+
+    if last_native is not None:
+        native = client.w3.eth.get_balance(client.account.address)
+        d_native = native - last_native
+        if d_native:
+            dn = d_native / 1e18
+            logger.info("Нативная монета изменена в обход бота: %+.8f", dn)
+            log_action(cfg.log_file, "native_flow", price=price, native=dn,
+                       native_t1=native_value_t1(dn, cfg.wrapped_native, pool_state["token0"],
+                                                 pool_state["token1"], price))

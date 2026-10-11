@@ -63,11 +63,18 @@ def compute_report(records: list, since_ts: Optional[float] = None) -> Optional[
     # Газ в token1. native_t1 = None — нативной монеты нет в паре, цену не знаем:
     # газ не учитываем и говорим об этом в отчёте. Старые снимки без native_t1 —
     # BSC, где нативная монета и есть token1 (WBNB).
+    # Изменения нативной монеты между тиками (native_flow) — это оператор
+    # (пополнил газ или потратил с кошелька бота), а не газ бота: вычитаем их
+    # из падения баланса между снимками.
     native_t1 = [s.get("native_t1", s["native"]) for s in snaps]
-    if any(v is None for v in native_t1):
+    nflows = [r for r in records if r.get("action") == "native_flow"]
+    if any(v is None for v in native_t1) or any(r.get("native_t1") is None for r in nflows):
         gas = None
     else:
-        gas = sum(max(0.0, a - b) for a, b in zip(native_t1, native_t1[1:]))
+        gas = 0.0
+        for (sa, a), (sb, b) in zip(zip(snaps, native_t1), zip(snaps[1:], native_t1[1:])):
+            ext = sum(r["native_t1"] for r in nflows if sa["ts"] < r["ts"] <= sb["ts"])
+            gas += max(0.0, a - b + ext)
 
     start_value = h0 * first["price"] + h1
     equity = n0 * last["price"] + n1

@@ -112,7 +112,69 @@ class TestDetectCapitalFlow(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl", wrapped_native="")
             free = pm.take_snapshot(FakeClient(liquidity=1), cfg, POOL, {"token_id": 1})
-        self.assertEqual(free, (5 * 10 ** 17, 2 * 10 ** 18))
+        self.assertEqual(free["free"], [5 * 10 ** 17, 2 * 10 ** 18])
+        self.assertEqual(free["native"], 7 * 10 ** 15)
+        self.assertEqual(free["liq"], {"token_id": 1, "liq": 1,
+                                       "pos": [3 * 10 ** 18, 4 * 10 ** 18]})
+
+
+
+class TestOperatorMovesBetweenTicks(unittest.TestCase):
+    """
+    Регрессия 10.10.2026: оператор добавил ликвидность прямо в NFT-позицию и
+    потратил 0.0067 BNB газового баланса. Сверка видела только свободный баланс:
+    вклад записался в прибыль LP, а BNB — в газ бота.
+    """
+
+    def _run(self, client, state):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = SimpleNamespace(log_file=Path(d) / "a.jsonl", wrapped_native="")
+            pm.detect_capital_flow(client, cfg, POOL, state)
+            text = cfg.log_file.read_text().strip() if cfg.log_file.exists() else ""
+            return [json.loads(l) for l in text.splitlines()]
+
+    def _state(self, **extra):
+        st = {"last_free": [5 * 10 ** 17, 2 * 10 ** 18], "position": {"token_id": 42}}
+        st.update(extra)
+        return st
+
+    def test_native_change_between_ticks_is_native_flow(self):
+        recs = self._run(FakeClient(liquidity=1), self._state(last_native=10 ** 16))
+        self.assertEqual([r["action"] for r in recs], ["native_flow"])
+        self.assertAlmostEqual(recs[0]["native"], -0.003)
+
+    def test_liquidity_added_directly_is_capital_flow(self):
+        # было L=100, стало 125; на всю L=125 контракт отдаёт 3 и 4 токена
+        st = self._state(last_liq={"token_id": 42, "liq": 100, "pos": [0, 0]})
+        recs = self._run(FakeClient(liquidity=125), st)
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]["action"], "capital_flow")
+        self.assertEqual(recs[0]["source"], "liquidity")
+        self.assertAlmostEqual(recs[0]["d0"], 3.0 * 25 / 125)
+        self.assertAlmostEqual(recs[0]["d1"], 4.0 * 25 / 125)
+
+    def test_liquidity_fully_removed_uses_last_amounts(self):
+        st = self._state(last_liq={"token_id": 42, "liq": 100,
+                                   "pos": [10 ** 18, 2 * 10 ** 18]})
+        recs = self._run(FakeClient(liquidity=0), st)
+        self.assertAlmostEqual(recs[0]["d0"], -1.0)
+        self.assertAlmostEqual(recs[0]["d1"], -2.0)
+
+    def test_unchanged_liquidity_and_native_log_nothing(self):
+        st = self._state(last_native=7 * 10 ** 15,
+                         last_liq={"token_id": 42, "liq": 125, "pos": [0, 0]})
+        self.assertEqual(self._run(FakeClient(liquidity=125), st), [])
+
+    def test_other_token_id_is_not_compared(self):
+        # бот переоткрыл позицию в прошлом тике — сравнивать нечего
+        st = self._state(last_liq={"token_id": 41, "liq": 100, "pos": [0, 0]})
+        self.assertEqual(self._run(FakeClient(liquidity=125), st), [])
+
+    def test_baselines_cleared(self):
+        st = self._state(last_native=1, last_liq={"token_id": 42, "liq": 1, "pos": [0, 0]})
+        self._run(FakeClient(liquidity=1), st)
+        self.assertIsNone(st["last_native"])
+        self.assertIsNone(st["last_liq"])
 
 
 if __name__ == "__main__":
